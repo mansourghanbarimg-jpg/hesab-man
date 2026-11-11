@@ -297,6 +297,7 @@
     <button data-page="purchase">خرید</button>
     <button data-page="parties">طرف‌حساب</button>
     <button data-page="checks">چک‌ها</button>
+    <button data-page="payments">اسناد پرداختی</button>
     <button data-page="staff">فروشنده‌ها</button>
     <button data-page="reports">گزارش</button>
     <button data-page="backup">بک‌آپ</button>
@@ -384,6 +385,12 @@
     <div id="checksList"></div>
   </div>
 
+  <!-- Payment documents -->
+  <div class="page" id="page-payments">
+    <input type="text" class="search-box" id="paymentSearch" placeholder="جستجو بر اساس نام، شماره فاکتور یا روش پرداخت..." oninput="renderPayments()" />
+    <div id="paymentsList"></div>
+  </div>
+
   <!-- Staff notes -->
   <div class="page" id="page-staff">
     <button class="btn btn-primary btn-block mb-2" onclick="openStaffModal()">+ یادداشت پرداخت به فروشنده</button>
@@ -393,24 +400,31 @@
   <!-- Reports -->
   <div class="page" id="page-reports">
     <div class="card">
-      <div class="section-title" style="margin-top:0">موجودی انبار</div>
-      <div id="reportStock"></div>
+      <div class="section-title" style="margin-top:0">فروش و سود خودکار</div>
+      <div class="stats">
+        <div class="stat-card"><div class="num" id="profit-day-sales">۰</div><div class="label">فروش امروز</div></div>
+        <div class="stat-card"><div class="num" id="profit-day-net">۰</div><div class="label">سود امروز</div></div>
+        <div class="stat-card"><div class="num" id="profit-month-sales">۰</div><div class="label">فروش ماه</div></div>
+        <div class="stat-card"><div class="num" id="profit-month-net">۰</div><div class="label">سود ماه</div></div>
+        <div class="stat-card"><div class="num" id="profit-year-sales">۰</div><div class="label">فروش سال</div></div>
+        <div class="stat-card"><div class="num" id="profit-year-net">۰</div><div class="label">سود سال</div></div>
+      </div>
+      <p class="text-muted">محاسبه بر اساس فاکتورهای فروش، بهای خرید ثبت‌شده برای هر قلم و برگشت از فروش است. برای فاکتورهای قدیمی، بهای خرید فعلی کالا مبنا قرار می‌گیرد.</p>
     </div>
     <div class="card">
-      <div class="section-title" style="margin-top:0">فاکتورهای فروش</div>
-      <div id="reportSales"></div>
+      <div class="section-title" style="margin-top:0">جستجو و مرتب‌سازی فاکتورها</div>
+      <input type="text" class="search-box" id="invoiceSearch" placeholder="نام مشتری/تأمین‌کننده یا شماره فاکتور..." oninput="renderReports()" />
+      <select id="invoiceSort" onchange="renderReports()"><option value="new">جدیدترین ابتدا</option><option value="old">قدیمی‌ترین ابتدا</option><option value="high">بیشترین مبلغ</option><option value="low">کمترین مبلغ</option></select>
     </div>
-    <div class="card">
-      <div class="section-title" style="margin-top:0">فاکتورهای خرید</div>
-      <div id="reportPurchases"></div>
-    </div>
+    <div class="card"><div class="section-title" style="margin-top:0">فاکتورهای فروش و برگشت</div><div id="reportSales"></div></div>
+    <div class="card"><div class="section-title" style="margin-top:0">فاکتورهای خرید و برگشت</div><div id="reportPurchases"></div></div>
   </div>
 
   <!-- Backup -->
   <div class="page" id="page-backup">
     <div class="card">
       <div class="section-title" style="margin-top:0">پشتیبان‌گیری</div>
-      <p class="text-muted mb-2">تمام اطلاعات (کالا، فاکتور، طرف‌حساب، چک و یادداشت‌ها) در یک فایل ذخیره می‌شود.</p>
+      <p class="text-muted mb-2">تمام اطلاعات (کالا، فاکتور، طرف‌حساب، چک، اسناد پرداختی و یادداشت‌ها) در یک فایل ذخیره می‌شود.</p>
       <button class="btn btn-primary btn-block" onclick="exportBackup()">دانلود بک‌آپ</button>
     </div>
     <div class="card">
@@ -434,7 +448,7 @@
   <script>
     // ========== Database (IndexedDB) ==========
     const DB_NAME = 'HesabManDB';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
     let db;
 
     function openDB() {
@@ -456,6 +470,9 @@
           }
           if (!database.objectStoreNames.contains('staffNotes')) {
             database.createObjectStore('staffNotes', { keyPath: 'id', autoIncrement: true });
+          }
+          if (!database.objectStoreNames.contains('paymentDocuments')) {
+            database.createObjectStore('paymentDocuments', { keyPath: 'id', autoIncrement: true });
           }
         };
         req.onsuccess = (e) => { db = e.target.result; resolve(db); };
@@ -505,6 +522,7 @@
     let invoices = [];
     let checks = [];
     let staffNotes = [];
+    let paymentDocuments = [];
     let saleCart = [];
     let purchaseCart = [];
 
@@ -516,6 +534,37 @@
       if (!d) return '';
       const date = new Date(d);
       return date.toLocaleDateString('fa-IR');
+    }
+    function jalaliParts(dateValue) {
+      const d = new Date(dateValue);
+      return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {year:'numeric',month:'2-digit',day:'2-digit'}).format(d).replace(/‎/g,'');
+    }
+    function jalaliToGregorian(jy, jm, jd) {
+      jy = Number(jy); jm = Number(jm); jd = Number(jd);
+      let jy2 = jy - 979, days = 365 * jy2 + Math.floor(jy2 / 33) * 8 + Math.floor((jy2 % 33 + 3) / 4) + 78 + jd;
+      for (let i=1;i<jm;i++) days += i <= 6 ? 31 : 30;
+      let gy = 1600 + 400 * Math.floor(days / 146097); days %= 146097;
+      let leap = true;
+      if (days >= 36525) { days--; gy += 100 * Math.floor(days / 36524); days %= 36524; if (days >= 365) days++; else leap = false; }
+      gy += 4 * Math.floor(days / 1461); days %= 1461;
+      if (days >= 366) { leap = false; days--; gy += Math.floor(days / 365); days %= 365; }
+      const monthDays = [31, leap?29:28,31,30,31,30,31,31,30,31,30,31];
+      let gm=0; while (gm<12 && days>=monthDays[gm]) days-=monthDays[gm++];
+      return new Date(gy, gm, days + 1).getTime();
+    }
+    function parseJalaliDate(value) {
+      const normalized = String(value||'').replace(/[۰-۹]/g, ch => '۰۱۲۳۴۵۶۷۸۹'.indexOf(ch)).replace(/[٠-٩]/g, ch => '٠١٢٣٤٥٦٧٨٩'.indexOf(ch)).trim();
+      const m = normalized.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+      if (!m) return null;
+      const [_,y,mo,d] = m; if (+mo<1 || +mo>12 || +d<1 || +d>(+mo<=6?31:(+mo<=11?30:30))) return null;
+      return jalaliToGregorian(y,mo,d);
+    }
+    function jalaliToday() { return jalaliParts(Date.now()).replace(/[^0-9۰-۹]/g,'/'); }
+    function paymentMethodLabel(method) { return ({cash:'نقدی',card:'کارت',card2card:'کارت به کارت',transfer:'حواله',check:'چک',credit:'نسیه / بدهکار'})[method] || method || '—'; }
+    function ensurePaymentForInvoice(inv, existingId) {
+      return { invoiceId: inv.id, invoiceType: inv.type, partyId: inv.partyId || null, partyName: inv.partyName || '', amount: inv.total || 0,
+        method: inv.payMethod || 'cash', info: inv.payInfo || '', checkNum: inv.checkNum || '', checkDue: inv.checkDue || '',
+        date: inv.date || Date.now(), jalaliDate: jalaliParts(inv.date || Date.now()), note: inv.note || '', ...(existingId ? {id:existingId} : {}) };
     }
     function toast(msg) {
       const el = document.getElementById('toast');
@@ -547,6 +596,7 @@
       if (name === 'purchase') { renderPurchaseProducts(); updatePurchaseCartBar(); }
       if (name === 'parties') renderParties();
       if (name === 'checks') renderChecks();
+      if (name === 'payments') renderPayments();
       if (name === 'staff') renderStaff();
       if (name === 'reports') renderReports();
     }
@@ -562,6 +612,8 @@
       invoices = await getAll('invoices');
       checks = await getAll('checks');
       staffNotes = await getAll('staffNotes');
+      paymentDocuments = await getAll('paymentDocuments');
+      for (const inv of invoices) { if (['sale','purchase'].includes(inv.type) && !paymentDocuments.some(d => d.invoiceId === inv.id)) { const doc=ensurePaymentForInvoice(inv); doc.id=await add('paymentDocuments',doc); paymentDocuments.push(doc); } }
       renderDashboard();
     }
 
@@ -686,7 +738,7 @@
       if (!p) return;
       const existing = saleCart.find(c => c.productId === pid);
       if (existing) existing.qty += 1;
-      else saleCart.push({ productId: pid, name: p.name, price: p.salePrice || 0, qty: 1 });
+      else saleCart.push({ productId: pid, name: p.name, price: p.salePrice || 0, costPrice: p.buyPrice || 0, qty: 1 });
       updateSaleCartBar();
       toast(p.name + ' اضافه شد');
     }
@@ -718,6 +770,7 @@
       const today = new Date().toISOString().slice(0, 10);
       showModal(`
         <h3>ثبت فاکتور فروش</h3>
+        <div class="form-row"><label>مشتری (اختیاری)</label><select id="sale-party"><option value="">بدون طرف‌حساب</option>${parties.filter(p=>p.type==='customer'||!p.type).map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
         ${itemsHtml}
         <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div>
         <div class="form-row"><label>تاریخ فاکتور</label><input type="date" id="sale-date" value="${today}" /></div>
@@ -773,7 +826,7 @@
       const inv = {
         type: 'sale',
         date: dateStr ? new Date(dateStr).getTime() : Date.now(),
-        items: saleCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, qty: c.qty })),
+        items: saleCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, costPrice: c.costPrice || 0, qty: c.qty })),
         total,
         payMethod,
         payInfo: document.getElementById('sale-pay-info')?.value || '',
@@ -789,7 +842,9 @@
           await put('products', p);
         }
       }
-      await add('invoices', inv);
+      inv.partyId = Number(document.getElementById('sale-party')?.value) || null; inv.partyName = parties.find(p=>p.id===inv.partyId)?.name || '';
+      inv.id = await add('invoices', inv);
+      await add('paymentDocuments', ensurePaymentForInvoice(inv));
       saleCart = [];
       await loadAll();
       closeModal();
@@ -823,7 +878,7 @@
       if (!p) return;
       const existing = purchaseCart.find(c => c.productId === pid);
       if (existing) existing.qty += 1;
-      else purchaseCart.push({ productId: pid, name: p.name, price: p.buyPrice || 0, qty: 1 });
+      else purchaseCart.push({ productId: pid, name: p.name, price: p.buyPrice || 0, costPrice: p.buyPrice || 0, qty: 1 });
       updatePurchaseCartBar();
       toast(p.name + ' اضافه شد');
     }
@@ -921,7 +976,7 @@
         type: 'purchase',
         date: dateStr ? new Date(dateStr).getTime() : Date.now(),
         partyId: partyId ? Number(partyId) : null,
-        items: purchaseCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, qty: c.qty })),
+        items: purchaseCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, costPrice: c.costPrice || c.price, qty: c.qty })),
         total,
         payMethod,
         payInfo: document.getElementById('purchase-pay-info')?.value || '',
@@ -936,7 +991,9 @@
           await put('products', p);
         }
       }
-      await add('invoices', inv);
+      inv.partyName = parties.find(p => p.id === inv.partyId)?.name || '';
+      inv.id = await add('invoices', inv);
+      await add('paymentDocuments', ensurePaymentForInvoice(inv));
       purchaseCart = [];
       await loadAll();
       closeModal();
@@ -1133,39 +1190,54 @@
     }
 
     // ========== Reports ==========
+    function invoicePartyName(inv) { return inv.partyName || parties.find(p => p.id === inv.partyId)?.name || ''; }
+    function invoiceKindLabel(type) { return ({sale:'فروش',purchase:'خرید',saleReturn:'برگشت از فروش',purchaseReturn:'برگشت از خرید'})[type] || type; }
+    function invoiceProfit(inv) {
+      if (inv.type !== 'sale') return 0;
+      return (inv.items||[]).reduce((sum,it) => sum + (Number(it.price||0)-Number(it.costPrice ?? products.find(p=>p.id===it.productId)?.buyPrice ?? 0))*Number(it.qty||0),0);
+    }
+    function periodTotals(start, end) {
+      const relevant = invoices.filter(i => i.date >= start && i.date < end);
+      const sales = relevant.filter(i => i.type === 'sale').reduce((s,i)=>s+(i.total||0),0) - relevant.filter(i=>i.type==='saleReturn').reduce((s,i)=>s+(i.total||0),0);
+      const profit = relevant.filter(i=>i.type==='sale').reduce((s,i)=>s+invoiceProfit(i),0) - relevant.filter(i=>i.type==='saleReturn').reduce((s,i)=>s+(i.profitAmount ?? invoiceProfit({...i,type:'sale'})),0);
+      return {sales,profit};
+    }
     function renderReports() {
-      const stockEl = document.getElementById('reportStock');
-      stockEl.innerHTML = products.length ? products.map(p => `
-        <div class="list-item">
-          <div>${p.name}</div>
-          <div style="font-weight:600">${(p.stock || 0).toLocaleString('fa-IR')}</div>
-        </div>
-      `).join('') : '<div class="text-muted">کالایی نیست</div>';
+      const now = new Date(), dayStart = new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
+      const monthStart = new Date(now.getFullYear(),now.getMonth(),1).getTime(), yearStart = new Date(now.getFullYear(),0,1).getTime();
+      const day = periodTotals(dayStart,dayStart+86400000), month=periodTotals(monthStart,new Date(now.getFullYear(),now.getMonth()+1,1).getTime()), year=periodTotals(yearStart,new Date(now.getFullYear()+1,0,1).getTime());
+      for (const [id,val] of [['day-sales',day.sales],['day-net',day.profit],['month-sales',month.sales],['month-net',month.profit],['year-sales',year.sales],['year-net',year.profit]]) document.getElementById('profit-'+id).textContent = Number(val).toLocaleString('fa-IR');
+      const q=(document.getElementById('invoiceSearch')?.value||'').trim().toLowerCase();
+      const sort=document.getElementById('invoiceSort')?.value||'new';
+      const filter=(type)=>{
+        let arr=invoices.filter(i=>i.type===type || (type==='sale'&&i.type==='saleReturn') || (type==='purchase'&&i.type==='purchaseReturn'));
+        if(q) arr=arr.filter(i=>String(i.id).includes(q)||invoicePartyName(i).toLowerCase().includes(q)||invoiceKindLabel(i.type).toLowerCase().includes(q));
+        arr.sort((a,b)=>sort==='old'?a.date-b.date:sort==='high'?(b.total||0)-(a.total||0):sort==='low'?(a.total||0)-(b.total||0):b.date-a.date);
+        return arr;
+      };
+      const render=(arr)=>arr.length?arr.map(i=>`<div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})"><div><div><b>${invoiceKindLabel(i.type)} #${i.id}</b> · ${jalaliParts(i.date)}</div><div class="text-muted text-sm">${invoicePartyName(i)||'بدون طرف‌حساب'} · ${(i.items||[]).length} قلم</div></div><div style="font-weight:600">${formatMoney(i.total)}</div></div>`).join(''):'<div class="text-muted">فاکتوری یافت نشد</div>';
+      document.getElementById('reportSales').innerHTML=render(filter('sale'));
+      document.getElementById('reportPurchases').innerHTML=render(filter('purchase'));
+    }
 
-      const sales = invoices.filter(i => i.type === 'sale').sort((a, b) => b.date - a.date).slice(0, 30);
-      document.getElementById('reportSales').innerHTML = sales.length ? sales.map(i => `
-        <div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})">
-          <div>
-            <div>#${i.id} · ${formatDate(i.date)}</div>
-            <div class="text-muted text-sm">${i.items?.length || 0} قلم</div>
-          </div>
-          <div style="font-weight:600">${formatMoney(i.total)}</div>
-        </div>
-      `).join('') : '<div class="text-muted">فاکتور فروشی نیست</div>';
-
-      const purchases = invoices.filter(i => i.type === 'purchase').sort((a, b) => b.date - a.date).slice(0, 30);
-      document.getElementById('reportPurchases').innerHTML = purchases.length ? purchases.map(i => {
-        const party = parties.find(p => p.id === i.partyId);
-        return `
-          <div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})">
-            <div>
-              <div>#${i.id} · ${formatDate(i.date)}</div>
-              <div class="text-muted text-sm">${party?.name || '—'} · ${i.items?.length || 0} قلم</div>
-            </div>
-            <div style="font-weight:600">${formatMoney(i.total)}</div>
-          </div>
-        `;
-      }).join('') : '<div class="text-muted">فاکتور خریدی نیست</div>';
+    function renderPayments() {
+      const el=document.getElementById('paymentsList'), q=(document.getElementById('paymentSearch')?.value||'').trim().toLowerCase();
+      let docs=[...paymentDocuments].sort((a,b)=>(b.date||0)-(a.date||0));
+      if(q) docs=docs.filter(d=>String(d.invoiceId).includes(q)||(d.partyName||'').toLowerCase().includes(q)||paymentMethodLabel(d.method).toLowerCase().includes(q)||(d.checkNum||'').toLowerCase().includes(q));
+      el.innerHTML=docs.length?docs.map(d=>`<div class="card"><div style="display:flex;justify-content:space-between;gap:8px"><b>${d.invoiceType==='sale'?'دریافت':'پرداخت'} · فاکتور #${d.invoiceId}</b><b>${formatMoney(d.amount)}</b></div><div class="text-muted text-sm">${d.partyName||'بدون طرف‌حساب'} · ${paymentMethodLabel(d.method)} · ${d.jalaliDate||jalaliParts(d.date)}</div>${d.checkNum?`<div class="text-sm">شماره چک: ${d.checkNum} ${d.checkDue?'· سررسید: '+d.checkDue:''}</div>`:''}${d.info?`<div class="text-muted text-sm">${d.info}</div>`:''}<button class="btn btn-outline btn-sm mt-2" onclick="editPayment(${d.id})">ویرایش سند</button></div>`).join(''):'<div class="empty-state">سند پرداختی ثبت نشده است</div>';
+    }
+    function editPayment(id) {
+      const d=paymentDocuments.find(x=>x.id===id); if(!d)return;
+      showModal(`<h3>ویرایش سند ${d.invoiceType==='sale'?'دریافت':'پرداخت'} فاکتور #${d.invoiceId}</h3><label>مبلغ</label><input id="pd-amount" type="number" value="${d.amount||0}"><label>روش پرداخت</label><select id="pd-method"><option value="cash">نقدی</option><option value="card">کارت</option><option value="card2card">کارت به کارت</option><option value="transfer">حواله</option><option value="check">چک</option><option value="credit">نسیه / بدهکار</option></select><label>تاریخ شمسی (مثلاً ۱۴۰۵/۰۸/۲۱)</label><input id="pd-date" value="${d.jalaliDate||jalaliParts(d.date)}" placeholder="۱۴۰۵/۰۸/۲۱"><label>شماره چک / توضیح پرداخت</label><input id="pd-info" value="${d.checkNum||d.info||''}"><label>توضیحات</label><input id="pd-note" value="${d.note||''}"><div class="flex"><button class="btn btn-primary flex-1" onclick="savePaymentEdit(${id})">ذخیره</button><button class="btn btn-outline" onclick="closeModal()">انصراف</button></div>`);
+      document.getElementById('pd-method').value=d.method||'cash';
+    }
+    async function savePaymentEdit(id) {
+      const d=paymentDocuments.find(x=>x.id===id), amount=Number(document.getElementById('pd-amount').value), jalali=document.getElementById('pd-date').value.trim(), date=parseJalaliDate(jalali);
+      if(!amount||amount<0)return toast('مبلغ معتبر وارد کنید'); if(!date)return toast('تاریخ شمسی را به شکل ۱۴۰۵/۰۸/۲۱ وارد کنید');
+      d.amount=amount; d.method=document.getElementById('pd-method').value; d.date=date; d.jalaliDate=jalali; const paymentInfo=document.getElementById('pd-info').value; d.checkNum=d.method==='check'?paymentInfo:''; d.info=d.method!=='check'?paymentInfo:''; d.note=document.getElementById('pd-note').value;
+      await put('paymentDocuments',d);
+      const inv=invoices.find(x=>x.id===d.invoiceId); if(inv){inv.payMethod=d.method;inv.checkNum=d.method==='check'?d.info:'';inv.payInfo=d.method!=='check'?d.info:'';await put('invoices',inv);}
+      await loadAll();closeModal();renderPayments();toast('سند پرداختی ویرایش شد');
     }
 
     // ========== View / Delete Invoice ==========
@@ -1188,11 +1260,49 @@
         ${itemsHtml}
         <div style="margin:14px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(inv.total)}</div>
         ${inv.note ? `<div class="text-muted text-sm mb-2">توضیحات: ${inv.note}</div>` : ''}
-        <div class="flex mt-2">
+        <div class="flex mt-2" style="flex-wrap:wrap">
+          ${['sale','purchase'].includes(inv.type) ? `<button class="btn btn-primary flex-1" onclick="editInvoice(${inv.id})">ویرایش فاکتور</button><button class="btn btn-outline flex-1" onclick="openReturnModal(${inv.id})">ثبت برگشت</button>` : ''}
           <button class="btn btn-danger flex-1" onclick="deleteInvoice(${inv.id})">حذف فاکتور</button>
           <button class="btn btn-outline" onclick="closeModal()">بستن</button>
         </div>
       `);
+    }
+
+    function editInvoice(id) {
+      const inv=invoices.find(x=>x.id===id); if(!inv || !['sale','purchase'].includes(inv.type))return;
+      const partyOpts=parties.map(p=>`<option value="${p.id}" ${p.id===inv.partyId?'selected':''}>${p.name}</option>`).join('');
+      const rows=(inv.items||[]).map((it,n)=>`<div class="card" style="padding:10px"><b>${it.name}</b><div class="flex"><div class="flex-1"><label>تعداد</label><input type="number" min="0" id="ei-q-${n}" value="${it.qty}"></div><div class="flex-1"><label>قیمت واحد</label><input type="number" min="0" id="ei-p-${n}" value="${it.price}"></div></div></div>`).join('');
+      showModal(`<h3>ویرایش فاکتور #${id}</h3><label>طرف‌حساب</label><select id="ei-party"><option value="">بدون طرف‌حساب</option>${partyOpts}</select><label>تاریخ شمسی</label><input id="ei-date" value="${jalaliParts(inv.date)}"><label>اقلام فاکتور</label>${rows}<label>روش پرداخت</label><select id="ei-method"><option value="cash">نقدی</option><option value="card">کارت</option><option value="card2card">کارت به کارت</option><option value="transfer">حواله</option><option value="check">چک</option><option value="credit">نسیه / بدهکار</option></select><label>توضیحات</label><input id="ei-note" value="${inv.note||''}"><div class="flex"><button class="btn btn-primary flex-1" onclick="saveInvoiceEdit(${id})">ذخیره تغییرات</button><button class="btn btn-outline" onclick="closeModal()">انصراف</button></div>`);
+      document.getElementById('ei-method').value=inv.payMethod||'cash';
+    }
+    async function saveInvoiceEdit(id) {
+      const inv=invoices.find(x=>x.id===id); if(!inv)return;
+      const newDate=parseJalaliDate(document.getElementById('ei-date').value); if(!newDate)return toast('تاریخ شمسی معتبر وارد کنید');
+      const items=(inv.items||[]).map((it,n)=>({...it,qty:Number(document.getElementById(`ei-q-${n}`).value),price:Number(document.getElementById(`ei-p-${n}`).value)})).filter(it=>it.qty>0);
+      if(!items.length||items.some(it=>!Number.isFinite(it.qty)||!Number.isFinite(it.price)||it.price<0))return toast('اقلام فاکتور را بررسی کنید');
+      // Roll back old stock movement, then apply edited movement.
+      for(const it of inv.items||[]){const p=products.find(x=>x.id===it.productId);if(p){p.stock=(p.stock||0)+(inv.type==='sale'?it.qty:-it.qty);await put('products',p);}}
+      for(const it of items){const p=products.find(x=>x.id===it.productId);if(p){p.stock=(p.stock||0)+(inv.type==='sale'?-it.qty:it.qty);await put('products',p);}}
+      inv.items=items;inv.total=items.reduce((a,it)=>a+it.qty*it.price,0);inv.date=newDate;inv.partyId=Number(document.getElementById('ei-party').value)||null;inv.partyName=parties.find(p=>p.id===inv.partyId)?.name||'';inv.payMethod=document.getElementById('ei-method').value;inv.note=document.getElementById('ei-note').value;
+      await put('invoices',inv);
+      const doc=paymentDocuments.find(d=>d.invoiceId===id); if(doc){Object.assign(doc,ensurePaymentForInvoice(inv,doc.id));await put('paymentDocuments',doc);}
+      await loadAll();closeModal();toast('فاکتور و موجودی انبار اصلاح شد');showPage('reports');
+    }
+    function openReturnModal(id) {
+      const inv=invoices.find(x=>x.id===id); if(!inv)return;
+      const rows=(inv.items||[]).map((it,n)=>{const returned=invoices.filter(x=>x.originalInvoiceId===id).flatMap(x=>x.items||[]).filter(x=>x.productId===it.productId).reduce((a,x)=>a+x.qty,0);const remaining=Math.max(0,it.qty-returned);return `<div class="card" style="padding:10px"><b>${it.name}</b><div class="text-muted">تعداد اولیه: ${it.qty} · باقی‌مانده قابل برگشت: ${remaining}</div><label>تعداد برگشتی</label><input type="number" min="0" max="${remaining}" id="ret-q-${n}" value="0"></div>`;}).join('');
+      showModal(`<h3>${inv.type==='sale'?'برگشت از فروش':'برگشت از خرید'} · فاکتور #${id}</h3><p class="text-muted mb-2">تعداد برگشتی هر کالا را وارد کنید.</p>${rows}<label>تاریخ شمسی</label><input id="ret-date" value="${jalaliToday()}"><label>توضیحات</label><input id="ret-note"><button class="btn btn-primary btn-block" onclick="saveReturn(${id})">ثبت برگشت</button><button class="btn btn-outline btn-block mt-2" onclick="closeModal()">انصراف</button>`);
+    }
+    async function saveReturn(id) {
+      const original=invoices.find(x=>x.id===id); if(!original)return;
+      const items=(original.items||[]).map((it,n)=>({...it,qty:Number(document.getElementById(`ret-q-${n}`).value)||0})).filter(it=>it.qty>0);
+      if(!items.length)return toast('تعداد برگشتی را وارد کنید');
+      for(let n=0;n<items.length;n++){const originalItem=original.items.find(x=>x.productId===items[n].productId);const already=invoices.filter(x=>x.originalInvoiceId===id).flatMap(x=>x.items||[]).filter(x=>x.productId===items[n].productId).reduce((a,x)=>a+x.qty,0);if(items[n].qty>originalItem.qty-already)return toast('تعداد برگشتی بیشتر از مانده فاکتور است');}
+      const date=parseJalaliDate(document.getElementById('ret-date').value);if(!date)return toast('تاریخ شمسی معتبر وارد کنید');
+      const type=original.type==='sale'?'saleReturn':'purchaseReturn';
+      for(const it of items){const p=products.find(x=>x.id===it.productId);if(p){p.stock=(p.stock||0)+(type==='saleReturn'?it.qty:-it.qty);await put('products',p);}}
+      const ret={type,originalInvoiceId:id,date,partyId:original.partyId,partyName:invoicePartyName(original),items,total:items.reduce((a,it)=>a+it.qty*it.price,0),profitAmount:items.reduce((a,it)=>a+(it.price-(it.costPrice??products.find(p=>p.id===it.productId)?.buyPrice??0))*it.qty,0),note:document.getElementById('ret-note').value,payMethod:'credit'};
+      await add('invoices',ret);await loadAll();closeModal();toast('برگشت ثبت و موجودی اصلاح شد');showPage('reports');
     }
 
     async function deleteInvoice(id) {
@@ -1204,15 +1314,16 @@
       for (const item of (inv.items || [])) {
         const p = products.find(x => x.id === item.productId);
         if (p) {
-          if (inv.type === 'sale') {
-            p.stock = (p.stock || 0) + item.qty; // return to stock
+          if (inv.type === 'sale' || inv.type === 'purchaseReturn') {
+            p.stock = (p.stock || 0) + item.qty;
           } else {
-            p.stock = (p.stock || 0) - item.qty; // remove from stock
+            p.stock = (p.stock || 0) - item.qty;
           }
           await put('products', p);
         }
       }
       await remove('invoices', id);
+      for (const d of paymentDocuments.filter(x=>x.invoiceId===id)) await remove('paymentDocuments',d.id);
       await loadAll();
       closeModal();
       toast('فاکتور حذف شد');
@@ -1228,7 +1339,8 @@
         parties,
         invoices,
         checks,
-        staffNotes
+        staffNotes,
+        paymentDocuments
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -1248,7 +1360,7 @@
         const data = JSON.parse(text);
         if (!data.products) throw new Error('فایل نامعتبر');
         // clear and re-import
-        for (const storeName of ['products', 'parties', 'invoices', 'checks', 'staffNotes']) {
+        for (const storeName of ['products', 'parties', 'invoices', 'checks', 'staffNotes', 'paymentDocuments']) {
           const all = await getAll(storeName);
           for (const item of all) await remove(storeName, item.id);
         }
@@ -1257,6 +1369,7 @@
         for (const i of (data.invoices || [])) await add('invoices', i);
         for (const c of (data.checks || [])) await add('checks', c);
         for (const s of (data.staffNotes || [])) await add('staffNotes', s);
+        for (const d of (data.paymentDocuments || [])) await add('paymentDocuments', d);
         await loadAll();
         toast('بازیابی با موفقیت انجام شد');
         showPage('dashboard');
