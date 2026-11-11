@@ -1,6 +1,6 @@
 {
-  "name": "حساب من",
-  "short_name": "حساب من",
+  "name": "حسابداری گالری پرشین",
+  "short_name": "گالری پرشین",
   "description": "انبار، فاکتور خرید و فروش، طرف‌حساب و حساب‌کتاب",
   "start_url": "./index.html",
   "display": "standalone",

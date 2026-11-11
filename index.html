@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0f766e" />
-  <title>حساب من</title>
+  <title>حسابداری گالری پرشین</title>
   <link rel="manifest" href="manifest.json" />
   <style>
     :root {
@@ -286,8 +286,8 @@
 </head>
 <body>
   <div class="header">
-    <h1>حساب من</h1>
-    <div class="sub">انبار · فاکتور · حساب‌کتاب</div>
+    <h1>حسابداری گالری پرشین</h1>
+    <div class="sub">فروشگاه پوشاک زنانه</div>
   </div>
 
   <div class="nav" id="mainNav">
@@ -578,14 +578,14 @@
       document.getElementById('stat-sales').textContent = salesToday.toLocaleString('fa-IR');
       document.getElementById('stat-purchases').textContent = purchasesToday.toLocaleString('fa-IR');
 
-      const recent = [...invoices].sort((a, b) => b.date - a.date).slice(0, 5);
+      const recent = [...invoices].sort((a, b) => b.date - a.date).slice(0, 8);
       const container = document.getElementById('recent-invoices');
       if (!recent.length) {
         container.innerHTML = '<div class="empty-state"><div class="icon">📋</div>هنوز فاکتوری ثبت نشده</div>';
         return;
       }
       container.innerHTML = recent.map(inv => `
-        <div class="list-item">
+        <div class="list-item" style="cursor:pointer" onclick="viewInvoice(${inv.id})">
           <div>
             <div style="font-weight:600">${inv.type === 'sale' ? 'فروش' : 'خرید'} #${inv.id}</div>
             <div class="text-muted text-sm">${formatDate(inv.date)} · ${inv.items?.length || 0} قلم</div>
@@ -715,16 +715,47 @@
         </div>
       `).join('');
       const total = saleCart.reduce((s, c) => s + c.qty * c.price, 0);
+      const today = new Date().toISOString().slice(0, 10);
       showModal(`
         <h3>ثبت فاکتور فروش</h3>
         ${itemsHtml}
         <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div>
+        <div class="form-row"><label>تاریخ فاکتور</label><input type="date" id="sale-date" value="${today}" /></div>
+        <div class="form-row">
+          <label>روش دریافت</label>
+          <select id="sale-pay-method" onchange="toggleSalePayDetails()">
+            <option value="cash">نقدی</option>
+            <option value="card">کارت</option>
+            <option value="card2card">کارت به کارت</option>
+            <option value="transfer">حواله</option>
+            <option value="check">چک</option>
+            <option value="credit">نسیه / بدهکار</option>
+          </select>
+        </div>
+        <div id="sale-pay-details"></div>
         <div class="form-row"><label>توضیحات (اختیاری)</label><input id="sale-note" placeholder="..." /></div>
         <div class="flex">
           <button class="btn btn-primary flex-1" onclick="saveSaleInvoice()">ثبت نهایی</button>
           <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
         </div>
       `);
+      toggleSalePayDetails();
+    }
+
+    function toggleSalePayDetails() {
+      const method = document.getElementById('sale-pay-method')?.value;
+      const box = document.getElementById('sale-pay-details');
+      if (!box) return;
+      if (method === 'check') {
+        box.innerHTML = `
+          <div class="form-row"><label>شماره چک</label><input id="sale-check-num" /></div>
+          <div class="form-row"><label>تاریخ سررسید</label><input type="date" id="sale-check-due" /></div>
+        `;
+      } else if (method === 'card' || method === 'card2card' || method === 'transfer') {
+        box.innerHTML = `<div class="form-row"><label>توضیح پرداخت (شماره کارت / حساب)</label><input id="sale-pay-info" placeholder="..." /></div>`;
+      } else {
+        box.innerHTML = '';
+      }
     }
 
     function changeSaleQty(idx, delta) {
@@ -737,11 +768,17 @@
 
     async function saveSaleInvoice() {
       const total = saleCart.reduce((s, c) => s + c.qty * c.price, 0);
+      const dateStr = document.getElementById('sale-date')?.value;
+      const payMethod = document.getElementById('sale-pay-method')?.value || 'cash';
       const inv = {
         type: 'sale',
-        date: Date.now(),
+        date: dateStr ? new Date(dateStr).getTime() : Date.now(),
         items: saleCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, qty: c.qty })),
         total,
+        payMethod,
+        payInfo: document.getElementById('sale-pay-info')?.value || '',
+        checkNum: document.getElementById('sale-check-num')?.value || '',
+        checkDue: document.getElementById('sale-check-due')?.value || '',
         note: document.getElementById('sale-note')?.value || ''
       };
       // update stock
@@ -817,6 +854,7 @@
         </div>
       `).join('');
       const total = purchaseCart.reduce((s, c) => s + c.qty * c.price, 0);
+      const today = new Date().toISOString().slice(0, 10);
       showModal(`
         <h3>ثبت فاکتور خرید</h3>
         <div class="form-row">
@@ -828,12 +866,42 @@
         </div>
         ${itemsHtml}
         <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div>
+        <div class="form-row"><label>تاریخ فاکتور</label><input type="date" id="purchase-date" value="${today}" /></div>
+        <div class="form-row">
+          <label>روش پرداخت</label>
+          <select id="purchase-pay-method" onchange="togglePurchasePayDetails()">
+            <option value="cash">نقدی</option>
+            <option value="card">کارت</option>
+            <option value="card2card">کارت به کارت</option>
+            <option value="transfer">حواله</option>
+            <option value="check">چک</option>
+            <option value="credit">نسیه / بدهکار</option>
+          </select>
+        </div>
+        <div id="purchase-pay-details"></div>
         <div class="form-row"><label>توضیحات</label><input id="purchase-note" /></div>
         <div class="flex">
           <button class="btn btn-primary flex-1" onclick="savePurchaseInvoice()">ثبت نهایی</button>
           <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
         </div>
       `);
+      togglePurchasePayDetails();
+    }
+
+    function togglePurchasePayDetails() {
+      const method = document.getElementById('purchase-pay-method')?.value;
+      const box = document.getElementById('purchase-pay-details');
+      if (!box) return;
+      if (method === 'check') {
+        box.innerHTML = `
+          <div class="form-row"><label>شماره چک</label><input id="purchase-check-num" /></div>
+          <div class="form-row"><label>تاریخ سررسید</label><input type="date" id="purchase-check-due" /></div>
+        `;
+      } else if (method === 'card' || method === 'card2card' || method === 'transfer') {
+        box.innerHTML = `<div class="form-row"><label>توضیح پرداخت (شماره کارت / حساب)</label><input id="purchase-pay-info" placeholder="..." /></div>`;
+      } else {
+        box.innerHTML = '';
+      }
     }
 
     function changePurchaseQty(idx, delta) {
@@ -847,12 +915,18 @@
     async function savePurchaseInvoice() {
       const partyId = document.getElementById('purchase-party')?.value;
       const total = purchaseCart.reduce((s, c) => s + c.qty * c.price, 0);
+      const dateStr = document.getElementById('purchase-date')?.value;
+      const payMethod = document.getElementById('purchase-pay-method')?.value || 'cash';
       const inv = {
         type: 'purchase',
-        date: Date.now(),
+        date: dateStr ? new Date(dateStr).getTime() : Date.now(),
         partyId: partyId ? Number(partyId) : null,
         items: purchaseCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, qty: c.qty })),
         total,
+        payMethod,
+        payInfo: document.getElementById('purchase-pay-info')?.value || '',
+        checkNum: document.getElementById('purchase-check-num')?.value || '',
+        checkDue: document.getElementById('purchase-check-due')?.value || '',
         note: document.getElementById('purchase-note')?.value || ''
       };
       for (const item of inv.items) {
@@ -960,6 +1034,7 @@
 
     function openCheckModal() {
       const partyOptions = parties.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      const today = new Date().toISOString().slice(0, 10);
       showModal(`
         <h3>ثبت چک</h3>
         <div class="form-row"><label>مبلغ</label><input id="chk-amount" type="number" /></div>
@@ -967,6 +1042,7 @@
           <select id="chk-party"><option value="">—</option>${partyOptions}</select>
         </div>
         <div class="form-row"><label>شماره چک</label><input id="chk-number" /></div>
+        <div class="form-row"><label>تاریخ صدور</label><input id="chk-issue" type="date" value="${today}" /></div>
         <div class="form-row"><label>تاریخ سررسید</label><input id="chk-due" type="date" /></div>
         <div class="form-row"><label>توضیحات</label><input id="chk-note" /></div>
         <div class="flex">
@@ -981,15 +1057,17 @@
       if (!amount) return toast('مبلغ را وارد کنید');
       const partyId = document.getElementById('chk-party').value;
       const party = parties.find(p => p.id === Number(partyId));
+      const issueStr = document.getElementById('chk-issue')?.value;
       await add('checks', {
         amount,
         partyId: partyId ? Number(partyId) : null,
         partyName: party?.name || '',
         number: document.getElementById('chk-number').value,
+        issueDate: issueStr || '',
         dueDate: document.getElementById('chk-due').value,
         note: document.getElementById('chk-note').value,
         status: 'pending',
-        date: Date.now()
+        date: issueStr ? new Date(issueStr).getTime() : Date.now()
       });
       await loadAll();
       closeModal();
@@ -1007,7 +1085,7 @@
       const sorted = [...staffNotes].sort((a, b) => b.date - a.date);
       el.innerHTML = sorted.map(n => `
         <div class="card" style="padding:12px 16px">
-          <div style="font-weight:600">${n.staffName}</div>
+          <div style="font-weight:600">${n.staffName} <span class="badge ${n.kind === 'salary' ? 'badge-green' : 'badge-yellow'}">${n.kind === 'salary' ? 'حقوق' : 'پورسانت'}</span></div>
           <div style="color:var(--primary);font-weight:600">${formatMoney(n.amount)}</div>
           <div class="text-muted text-sm">${formatDate(n.date)} · ${n.note || ''}</div>
         </div>
@@ -1015,10 +1093,19 @@
     }
 
     function openStaffModal() {
+      const today = new Date().toISOString().slice(0, 10);
       showModal(`
         <h3>پرداخت به فروشنده</h3>
         <div class="form-row"><label>نام فروشنده</label><input id="staff-name" placeholder="مثال: مریم" /></div>
         <div class="form-row"><label>مبلغ</label><input id="staff-amount" type="number" /></div>
+        <div class="form-row">
+          <label>نوع پرداخت</label>
+          <select id="staff-kind">
+            <option value="salary">حقوق</option>
+            <option value="commission">پورسانت</option>
+          </select>
+        </div>
+        <div class="form-row"><label>تاریخ</label><input type="date" id="staff-date" value="${today}" /></div>
         <div class="form-row"><label>توضیحات</label><input id="staff-note" placeholder="بابت ..." /></div>
         <div class="flex">
           <button class="btn btn-primary flex-1" onclick="saveStaffNote()">ذخیره</button>
@@ -1031,11 +1118,13 @@
       const name = document.getElementById('staff-name').value.trim();
       const amount = Number(document.getElementById('staff-amount').value);
       if (!name || !amount) return toast('نام و مبلغ را وارد کنید');
+      const dateStr = document.getElementById('staff-date')?.value;
       await add('staffNotes', {
         staffName: name,
         amount,
+        kind: document.getElementById('staff-kind')?.value || 'salary',
         note: document.getElementById('staff-note').value.trim(),
-        date: Date.now()
+        date: dateStr ? new Date(dateStr).getTime() : Date.now()
       });
       await loadAll();
       closeModal();
@@ -1053,9 +1142,9 @@
         </div>
       `).join('') : '<div class="text-muted">کالایی نیست</div>';
 
-      const sales = invoices.filter(i => i.type === 'sale').sort((a, b) => b.date - a.date).slice(0, 20);
+      const sales = invoices.filter(i => i.type === 'sale').sort((a, b) => b.date - a.date).slice(0, 30);
       document.getElementById('reportSales').innerHTML = sales.length ? sales.map(i => `
-        <div class="list-item">
+        <div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})">
           <div>
             <div>#${i.id} · ${formatDate(i.date)}</div>
             <div class="text-muted text-sm">${i.items?.length || 0} قلم</div>
@@ -1064,11 +1153,11 @@
         </div>
       `).join('') : '<div class="text-muted">فاکتور فروشی نیست</div>';
 
-      const purchases = invoices.filter(i => i.type === 'purchase').sort((a, b) => b.date - a.date).slice(0, 20);
+      const purchases = invoices.filter(i => i.type === 'purchase').sort((a, b) => b.date - a.date).slice(0, 30);
       document.getElementById('reportPurchases').innerHTML = purchases.length ? purchases.map(i => {
         const party = parties.find(p => p.id === i.partyId);
         return `
-          <div class="list-item">
+          <div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})">
             <div>
               <div>#${i.id} · ${formatDate(i.date)}</div>
               <div class="text-muted text-sm">${party?.name || '—'} · ${i.items?.length || 0} قلم</div>
@@ -1077,6 +1166,57 @@
           </div>
         `;
       }).join('') : '<div class="text-muted">فاکتور خریدی نیست</div>';
+    }
+
+    // ========== View / Delete Invoice ==========
+    function viewInvoice(id) {
+      const inv = invoices.find(x => x.id === id);
+      if (!inv) return toast('فاکتور پیدا نشد');
+      const party = inv.partyId ? parties.find(p => p.id === inv.partyId) : null;
+      const itemsHtml = (inv.items || []).map(it => `
+        <div class="invoice-item">
+          <div>
+            <div style="font-weight:600">${it.name}</div>
+            <div class="text-muted text-sm">${it.qty} × ${formatMoney(it.price)}</div>
+          </div>
+          <div style="font-weight:600">${formatMoney(it.qty * it.price)}</div>
+        </div>
+      `).join('');
+      showModal(`
+        <h3>${inv.type === 'sale' ? 'فاکتور فروش' : 'فاکتور خرید'} #${inv.id}</h3>
+        <div class="text-muted text-sm mb-2">${formatDate(inv.date)}${party ? ' · ' + party.name : ''}</div>
+        ${itemsHtml}
+        <div style="margin:14px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(inv.total)}</div>
+        ${inv.note ? `<div class="text-muted text-sm mb-2">توضیحات: ${inv.note}</div>` : ''}
+        <div class="flex mt-2">
+          <button class="btn btn-danger flex-1" onclick="deleteInvoice(${inv.id})">حذف فاکتور</button>
+          <button class="btn btn-outline" onclick="closeModal()">بستن</button>
+        </div>
+      `);
+    }
+
+    async function deleteInvoice(id) {
+      const inv = invoices.find(x => x.id === id);
+      if (!inv) return;
+      if (!confirm('این فاکتور حذف شود؟ موجودی انبار هم اصلاح می‌شود.')) return;
+
+      // Reverse stock
+      for (const item of (inv.items || [])) {
+        const p = products.find(x => x.id === item.productId);
+        if (p) {
+          if (inv.type === 'sale') {
+            p.stock = (p.stock || 0) + item.qty; // return to stock
+          } else {
+            p.stock = (p.stock || 0) - item.qty; // remove from stock
+          }
+          await put('products', p);
+        }
+      }
+      await remove('invoices', id);
+      await loadAll();
+      closeModal();
+      toast('فاکتور حذف شد');
+      showPage('dashboard');
     }
 
     // ========== Backup ==========
