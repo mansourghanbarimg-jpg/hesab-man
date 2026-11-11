@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0f766e" />
+  <title>حساب من</title>
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #0d9488;
+      --bg: #f0fdfa;
+      --card: #ffffff;
+      --text: #134e4a;
+      --muted: #5eead4;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --border: #ccfbf1;
+      --shadow: 0 4px 20px rgba(15, 118, 110, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 80px;
+      line-height: 1.5;
+    }
+    .header {
+      background: linear-gradient(135deg, #0f766e, #0d9488);
+      color: white;
+      padding: 16px 20px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    }
+    .header h1 { font-size: 1.25rem; font-weight: 700; }
+    .header .sub { font-size: 0.8rem; opacity: 0.85; margin-top: 2px; }
+    .nav {
+      display: flex;
+      overflow-x: auto;
+      gap: 8px;
+      padding: 12px 16px;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 64px;
+      z-index: 90;
+    }
+    .nav button {
+      flex-shrink: 0;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 999px;
+      background: #f0fdfa;
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .nav button.active {
+      background: var(--primary);
+      color: white;
+    }
+    .page { display: none; padding: 16px; max-width: 640px; margin: 0 auto; }
+    .page.active { display: block; }
+    .card {
+      background: var(--card);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:active { background: var(--primary-dark); transform: scale(0.98); }
+    .btn-outline {
+      background: white;
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+    }
+    .btn-danger { background: var(--danger); color: white; }
+    .btn-sm { padding: 8px 14px; font-size: 0.85rem; }
+    .btn-block { width: 100%; }
+    .grid-products {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 10px;
+    }
+    .product-tile {
+      background: white;
+      border: 1.5px solid var(--border);
+      border-radius: 14px;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      min-height: 90px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .product-tile:active { transform: scale(0.96); border-color: var(--primary); background: #f0fdfa; }
+    .product-tile .name { font-size: 0.85rem; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+    .product-tile .stock { font-size: 0.75rem; color: #64748b; }
+    .product-tile .price { font-size: 0.8rem; color: var(--primary); font-weight: 600; margin-top: 2px; }
+    .search-box {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 1rem;
+      margin-bottom: 14px;
+      background: white;
+      outline: none;
+    }
+    .search-box:focus { border-color: var(--primary); }
+    input, select, textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+      background: white;
+      outline: none;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; color: #334155; }
+    .form-row { margin-bottom: 4px; }
+    .list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .list-item:last-child { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: white;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 20px 20px 0 0;
+      padding: 20px;
+      max-height: 90vh;
+      overflow-y: auto;
+      animation: slideUp 0.25s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(40px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal h3 { margin-bottom: 16px; font-size: 1.1rem; }
+    .cart-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 80;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+    }
+    .cart-bar.show { display: flex; }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #64748b;
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 14px;
+      padding: 14px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+    .stat-card .num { font-size: 1.3rem; font-weight: 700; color: var(--primary); }
+    .stat-card .label { font-size: 0.8rem; color: #64748b; margin-top: 2px; }
+    .invoice-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .qty-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .qty-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1.5px solid var(--primary);
+      background: white;
+      color: var(--primary);
+      font-size: 1.1rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .toast {
+      position: fixed;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #134e4a;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      z-index: 300;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+    .section-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 16px 0 10px;
+      color: var(--text);
+    }
+    .flex { display: flex; gap: 8px; }
+    .flex-1 { flex: 1; }
+    .text-muted { color: #64748b; font-size: 0.85rem; }
+    .text-sm { font-size: 0.85rem; }
+    .mt-2 { margin-top: 8px; }
+    .mb-2 { margin-bottom: 8px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>حساب من</h1>
+    <div class="sub">انبار · فاکتور · حساب‌کتاب</div>
+  </div>
+
+  <div class="nav" id="mainNav">
+    <button class="active" data-page="dashboard">خانه</button>
+    <button data-page="products">کالاها</button>
+    <button data-page="sale">فروش</button>
+    <button data-page="purchase">خرید</button>
+    <button data-page="parties">طرف‌حساب</button>
+    <button data-page="checks">چک‌ها</button>
+    <button data-page="staff">فروشنده‌ها</button>
+    <button data-page="reports">گزارش</button>
+    <button data-page="backup">بک‌آپ</button>
+  </div>
+
+  <!-- Dashboard -->
+  <div class="page active" id="page-dashboard">
+    <div class="stats">
+      <div class="stat-card">
+        <div class="num" id="stat-products">0</div>
+        <div class="label">تعداد کالا</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="stat-stock">0</div>
+        <div class="label">کل موجودی</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="stat-sales">0</div>
+        <div class="label">فروش امروز</div>
+      </div>
+      <div class="stat-card">
+        <div class="num" id="stat-purchases">0</div>
+        <div class="label">خرید امروز</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title" style="margin-top:0">دسترسی سریع</div>
+      <div class="flex" style="flex-wrap:wrap">
+        <button class="btn btn-primary flex-1" onclick="showPage('sale')">ثبت فروش</button>
+        <button class="btn btn-outline flex-1" onclick="showPage('purchase')">ثبت خرید</button>
+      </div>
+      <div class="flex mt-2" style="flex-wrap:wrap">
+        <button class="btn btn-outline flex-1 btn-sm" onclick="showPage('products')">مدیریت کالا</button>
+        <button class="btn btn-outline flex-1 btn-sm" onclick="showPage('parties')">طرف‌حساب‌ها</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title" style="margin-top:0">آخرین فاکتورها</div>
+      <div id="recent-invoices"></div>
+    </div>
+  </div>
+
+  <!-- Products -->
+  <div class="page" id="page-products">
+    <input type="text" class="search-box" id="productSearch" placeholder="جستجوی کالا..." oninput="renderProducts()" />
+    <button class="btn btn-primary btn-block mb-2" onclick="openProductModal()">+ کالای جدید</button>
+    <div id="productsList" class="grid-products"></div>
+  </div>
+
+  <!-- Sale -->
+  <div class="page" id="page-sale">
+    <input type="text" class="search-box" id="saleSearch" placeholder="جستجوی کالا برای فروش..." oninput="renderSaleProducts()" />
+    <div id="saleProducts" class="grid-products"></div>
+    <div class="cart-bar" id="saleCartBar">
+      <div>
+        <div class="text-sm text-muted">تعداد اقلام: <span id="saleCartCount">0</span></div>
+        <div style="font-weight:700" id="saleCartTotal">۰ تومان</div>
+      </div>
+      <button class="btn btn-primary" onclick="openSaleCheckout()">ثبت فاکتور</button>
+    </div>
+  </div>
+
+  <!-- Purchase -->
+  <div class="page" id="page-purchase">
+    <input type="text" class="search-box" id="purchaseSearch" placeholder="جستجوی کالا برای خرید..." oninput="renderPurchaseProducts()" />
+    <div id="purchaseProducts" class="grid-products"></div>
+    <div class="cart-bar" id="purchaseCartBar">
+      <div>
+        <div class="text-sm text-muted">تعداد اقلام: <span id="purchaseCartCount">0</span></div>
+        <div style="font-weight:700" id="purchaseCartTotal">۰ تومان</div>
+      </div>
+      <button class="btn btn-primary" onclick="openPurchaseCheckout()">ثبت فاکتور خرید</button>
+    </div>
+  </div>
+
+  <!-- Parties -->
+  <div class="page" id="page-parties">
+    <button class="btn btn-primary btn-block mb-2" onclick="openPartyModal()">+ طرف‌حساب جدید</button>
+    <div id="partiesList"></div>
+  </div>
+
+  <!-- Checks -->
+  <div class="page" id="page-checks">
+    <button class="btn btn-primary btn-block mb-2" onclick="openCheckModal()">+ ثبت چک</button>
+    <div id="checksList"></div>
+  </div>
+
+  <!-- Staff notes -->
+  <div class="page" id="page-staff">
+    <button class="btn btn-primary btn-block mb-2" onclick="openStaffModal()">+ یادداشت پرداخت به فروشنده</button>
+    <div id="staffList"></div>
+  </div>
+
+  <!-- Reports -->
+  <div class="page" id="page-reports">
+    <div class="card">
+      <div class="section-title" style="margin-top:0">موجودی انبار</div>
+      <div id="reportStock"></div>
+    </div>
+    <div class="card">
+      <div class="section-title" style="margin-top:0">فاکتورهای فروش</div>
+      <div id="reportSales"></div>
+    </div>
+    <div class="card">
+      <div class="section-title" style="margin-top:0">فاکتورهای خرید</div>
+      <div id="reportPurchases"></div>
+    </div>
+  </div>
+
+  <!-- Backup -->
+  <div class="page" id="page-backup">
+    <div class="card">
+      <div class="section-title" style="margin-top:0">پشتیبان‌گیری</div>
+      <p class="text-muted mb-2">تمام اطلاعات (کالا، فاکتور، طرف‌حساب، چک و یادداشت‌ها) در یک فایل ذخیره می‌شود.</p>
+      <button class="btn btn-primary btn-block" onclick="exportBackup()">دانلود بک‌آپ</button>
+    </div>
+    <div class="card">
+      <div class="section-title" style="margin-top:0">بازیابی از بک‌آپ</div>
+      <p class="text-muted mb-2">فایل بک‌آپ قبلی را انتخاب کنید. اطلاعات فعلی جایگزین می‌شود.</p>
+      <input type="file" id="backupFile" accept=".json" onchange="importBackup(event)" />
+    </div>
+    <div class="card">
+      <div class="section-title" style="margin-top:0">هشدار</div>
+      <p class="text-muted">داده‌ها فقط روی همین گوشی ذخیره می‌شوند. حتماً به‌طور منظم بک‌آپ بگیرید.</p>
+    </div>
+  </div>
+
+  <!-- Modals -->
+  <div class="modal-overlay" id="modal">
+    <div class="modal" id="modalContent"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ========== Database (IndexedDB) ==========
+    const DB_NAME = 'HesabManDB';
+    const DB_VERSION = 1;
+    let db;
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const database = e.target.result;
+          if (!database.objectStoreNames.contains('products')) {
+            database.createObjectStore('products', { keyPath: 'id', autoIncrement: true });
+          }
+          if (!database.objectStoreNames.contains('parties')) {
+            database.createObjectStore('parties', { keyPath: 'id', autoIncrement: true });
+          }
+          if (!database.objectStoreNames.contains('invoices')) {
+            database.createObjectStore('invoices', { keyPath: 'id', autoIncrement: true });
+          }
+          if (!database.objectStoreNames.contains('checks')) {
+            database.createObjectStore('checks', { keyPath: 'id', autoIncrement: true });
+          }
+          if (!database.objectStoreNames.contains('staffNotes')) {
+            database.createObjectStore('staffNotes', { keyPath: 'id', autoIncrement: true });
+          }
+        };
+        req.onsuccess = (e) => { db = e.target.result; resolve(db); };
+        req.onerror = (e) => reject(e.target.error);
+      });
+    }
+
+    function store(name, mode = 'readonly') {
+      return db.transaction(name, mode).objectStore(name);
+    }
+
+    function getAll(storeName) {
+      return new Promise((resolve, reject) => {
+        const req = store(storeName).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function add(storeName, data) {
+      return new Promise((resolve, reject) => {
+        const req = store(storeName, 'readwrite').add(data);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function put(storeName, data) {
+      return new Promise((resolve, reject) => {
+        const req = store(storeName, 'readwrite').put(data);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    function remove(storeName, id) {
+      return new Promise((resolve, reject) => {
+        const req = store(storeName, 'readwrite').delete(id);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    // ========== State ==========
+    let products = [];
+    let parties = [];
+    let invoices = [];
+    let checks = [];
+    let staffNotes = [];
+    let saleCart = [];
+    let purchaseCart = [];
+
+    // ========== Helpers ==========
+    function formatMoney(n) {
+      return Number(n || 0).toLocaleString('fa-IR') + ' تومان';
+    }
+    function formatDate(d) {
+      if (!d) return '';
+      const date = new Date(d);
+      return date.toLocaleDateString('fa-IR');
+    }
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2200);
+    }
+    function closeModal() {
+      document.getElementById('modal').classList.remove('show');
+    }
+    function showModal(html) {
+      document.getElementById('modalContent').innerHTML = html;
+      document.getElementById('modal').classList.add('show');
+    }
+
+    // ========== Navigation ==========
+    function showPage(name) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('page-' + name).classList.add('active');
+      document.querySelectorAll('.nav button').forEach(b => {
+        b.classList.toggle('active', b.dataset.page === name);
+      });
+      // hide cart bars when leaving
+      document.getElementById('saleCartBar').classList.remove('show');
+      document.getElementById('purchaseCartBar').classList.remove('show');
+      if (name === 'dashboard') renderDashboard();
+      if (name === 'products') renderProducts();
+      if (name === 'sale') { renderSaleProducts(); updateSaleCartBar(); }
+      if (name === 'purchase') { renderPurchaseProducts(); updatePurchaseCartBar(); }
+      if (name === 'parties') renderParties();
+      if (name === 'checks') renderChecks();
+      if (name === 'staff') renderStaff();
+      if (name === 'reports') renderReports();
+    }
+
+    document.getElementById('mainNav').addEventListener('click', (e) => {
+      if (e.target.tagName === 'BUTTON') showPage(e.target.dataset.page);
+    });
+
+    // ========== Load Data ==========
+    async function loadAll() {
+      products = await getAll('products');
+      parties = await getAll('parties');
+      invoices = await getAll('invoices');
+      checks = await getAll('checks');
+      staffNotes = await getAll('staffNotes');
+      renderDashboard();
+    }
+
+    // ========== Dashboard ==========
+    function renderDashboard() {
+      document.getElementById('stat-products').textContent = products.length;
+      const totalStock = products.reduce((s, p) => s + (p.stock || 0), 0);
+      document.getElementById('stat-stock').textContent = totalStock.toLocaleString('fa-IR');
+      const today = new Date().toDateString();
+      const salesToday = invoices.filter(i => i.type === 'sale' && new Date(i.date).toDateString() === today)
+        .reduce((s, i) => s + (i.total || 0), 0);
+      const purchasesToday = invoices.filter(i => i.type === 'purchase' && new Date(i.date).toDateString() === today)
+        .reduce((s, i) => s + (i.total || 0), 0);
+      document.getElementById('stat-sales').textContent = salesToday.toLocaleString('fa-IR');
+      document.getElementById('stat-purchases').textContent = purchasesToday.toLocaleString('fa-IR');
+
+      const recent = [...invoices].sort((a, b) => b.date - a.date).slice(0, 5);
+      const container = document.getElementById('recent-invoices');
+      if (!recent.length) {
+        container.innerHTML = '<div class="empty-state"><div class="icon">📋</div>هنوز فاکتوری ثبت نشده</div>';
+        return;
+      }
+      container.innerHTML = recent.map(inv => `
+        <div class="list-item">
+          <div>
+            <div style="font-weight:600">${inv.type === 'sale' ? 'فروش' : 'خرید'} #${inv.id}</div>
+            <div class="text-muted text-sm">${formatDate(inv.date)} · ${inv.items?.length || 0} قلم</div>
+          </div>
+          <div style="font-weight:600;color:var(--primary)">${formatMoney(inv.total)}</div>
+        </div>
+      `).join('');
+    }
+
+    // ========== Products ==========
+    function renderProducts() {
+      const q = (document.getElementById('productSearch')?.value || '').trim().toLowerCase();
+      let list = products;
+      if (q) list = products.filter(p => p.name.toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q));
+      const el = document.getElementById('productsList');
+      if (!list.length) {
+        el.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">📦</div>کالایی ثبت نشده</div>';
+        return;
+      }
+      el.innerHTML = list.map(p => `
+        <div class="product-tile" onclick="openProductModal(${p.id})">
+          <div class="name">${p.name}</div>
+          <div class="stock">موجودی: ${(p.stock || 0).toLocaleString('fa-IR')}</div>
+          <div class="price">${formatMoney(p.salePrice || 0)}</div>
+        </div>
+      `).join('');
+    }
+
+    function openProductModal(id) {
+      const p = id ? products.find(x => x.id === id) : null;
+      showModal(`
+        <h3>${p ? 'ویرایش کالا' : 'کالای جدید'}</h3>
+        <div class="form-row"><label>نام کالا</label><input id="p-name" value="${p?.name || ''}" placeholder="مثال: مانتو مشکی" /></div>
+        <div class="form-row"><label>دسته‌بندی (اختیاری)</label><input id="p-cat" value="${p?.category || ''}" placeholder="مثال: مانتو" /></div>
+        <div class="form-row"><label>قیمت خرید</label><input id="p-buy" type="number" value="${p?.buyPrice || ''}" placeholder="0" /></div>
+        <div class="form-row"><label>قیمت فروش</label><input id="p-sale" type="number" value="${p?.salePrice || ''}" placeholder="0" /></div>
+        <div class="form-row"><label>موجودی فعلی</label><input id="p-stock" type="number" value="${p?.stock ?? 0}" /></div>
+        <div class="flex mt-2">
+          <button class="btn btn-primary flex-1" onclick="saveProduct(${p?.id || 'null'})">ذخیره</button>
+          ${p ? `<button class="btn btn-danger btn-sm" onclick="deleteProduct(${p.id})">حذف</button>` : ''}
+          <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
+        </div>
+      `);
+    }
+
+    async function saveProduct(id) {
+      const name = document.getElementById('p-name').value.trim();
+      if (!name) return toast('نام کالا را وارد کنید');
+      const data = {
+        name,
+        category: document.getElementById('p-cat').value.trim(),
+        buyPrice: Number(document.getElementById('p-buy').value) || 0,
+        salePrice: Number(document.getElementById('p-sale').value) || 0,
+        stock: Number(document.getElementById('p-stock').value) || 0
+      };
+      if (id) {
+        data.id = id;
+        await put('products', data);
+      } else {
+        await add('products', data);
+      }
+      await loadAll();
+      closeModal();
+      renderProducts();
+      toast('کالا ذخیره شد');
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm('حذف این کالا؟')) return;
+      await remove('products', id);
+      await loadAll();
+      closeModal();
+      renderProducts();
+      toast('حذف شد');
+    }
+
+    // ========== Sale Cart ==========
+    function renderSaleProducts() {
+      const q = (document.getElementById('saleSearch')?.value || '').trim().toLowerCase();
+      let list = products;
+      if (q) list = products.filter(p => p.name.toLowerCase().includes(q));
+      const el = document.getElementById('saleProducts');
+      if (!list.length) {
+        el.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">📦</div>کالایی نیست</div>';
+        return;
+      }
+      el.innerHTML = list.map(p => `
+        <div class="product-tile" onclick="addToSaleCart(${p.id})">
+          <div class="name">${p.name}</div>
+          <div class="stock">موجودی: ${(p.stock || 0).toLocaleString('fa-IR')}</div>
+          <div class="price">${formatMoney(p.salePrice || 0)}</div>
+        </div>
+      `).join('');
+    }
+
+    function addToSaleCart(pid) {
+      const p = products.find(x => x.id === pid);
+      if (!p) return;
+      const existing = saleCart.find(c => c.productId === pid);
+      if (existing) existing.qty += 1;
+      else saleCart.push({ productId: pid, name: p.name, price: p.salePrice || 0, qty: 1 });
+      updateSaleCartBar();
+      toast(p.name + ' اضافه شد');
+    }
+
+    function updateSaleCartBar() {
+      const bar = document.getElementById('saleCartBar');
+      if (!saleCart.length) { bar.classList.remove('show'); return; }
+      bar.classList.add('show');
+      document.getElementById('saleCartCount').textContent = saleCart.reduce((s, c) => s + c.qty, 0);
+      document.getElementById('saleCartTotal').textContent = formatMoney(saleCart.reduce((s, c) => s + c.qty * c.price, 0));
+    }
+
+    function openSaleCheckout() {
+      if (!saleCart.length) return;
+      let itemsHtml = saleCart.map((c, i) => `
+        <div class="invoice-item">
+          <div>
+            <div style="font-weight:600">${c.name}</div>
+            <div class="text-muted text-sm">${formatMoney(c.price)}</div>
+          </div>
+          <div class="qty-control">
+            <button class="qty-btn" onclick="changeSaleQty(${i}, -1)">−</button>
+            <span>${c.qty}</span>
+            <button class="qty-btn" onclick="changeSaleQty(${i}, 1)">+</button>
+          </div>
+        </div>
+      `).join('');
+      const total = saleCart.reduce((s, c) => s + c.qty * c.price, 0);
+      showModal(`
+        <h3>ثبت فاکتور فروش</h3>
+        ${itemsHtml}
+        <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div>
+        <div class="form-row"><label>توضیحات (اختیاری)</label><input id="sale-note" placeholder="..." /></div>
+        <div class="flex">
+          <button class="btn btn-primary flex-1" onclick="saveSaleInvoice()">ثبت نهایی</button>
+          <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
+        </div>
+      `);
+    }
+
+    function changeSaleQty(idx, delta) {
+      saleCart[idx].qty += delta;
+      if (saleCart[idx].qty <= 0) saleCart.splice(idx, 1);
+      updateSaleCartBar();
+      if (saleCart.length) openSaleCheckout();
+      else closeModal();
+    }
+
+    async function saveSaleInvoice() {
+      const total = saleCart.reduce((s, c) => s + c.qty * c.price, 0);
+      const inv = {
+        type: 'sale',
+        date: Date.now(),
+        items: saleCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, qty: c.qty })),
+        total,
+        note: document.getElementById('sale-note')?.value || ''
+      };
+      // update stock
+      for (const item of inv.items) {
+        const p = products.find(x => x.id === item.productId);
+        if (p) {
+          p.stock = (p.stock || 0) - item.qty;
+          await put('products', p);
+        }
+      }
+      await add('invoices', inv);
+      saleCart = [];
+      await loadAll();
+      closeModal();
+      updateSaleCartBar();
+      renderSaleProducts();
+      toast('فاکتور فروش ثبت شد');
+      showPage('dashboard');
+    }
+
+    // ========== Purchase Cart ==========
+    function renderPurchaseProducts() {
+      const q = (document.getElementById('purchaseSearch')?.value || '').trim().toLowerCase();
+      let list = products;
+      if (q) list = products.filter(p => p.name.toLowerCase().includes(q));
+      const el = document.getElementById('purchaseProducts');
+      if (!list.length) {
+        el.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">📦</div>کالایی نیست. اول کالا تعریف کنید</div>';
+        return;
+      }
+      el.innerHTML = list.map(p => `
+        <div class="product-tile" onclick="addToPurchaseCart(${p.id})">
+          <div class="name">${p.name}</div>
+          <div class="stock">موجودی: ${(p.stock || 0).toLocaleString('fa-IR')}</div>
+          <div class="price">${formatMoney(p.buyPrice || 0)}</div>
+        </div>
+      `).join('');
+    }
+
+    function addToPurchaseCart(pid) {
+      const p = products.find(x => x.id === pid);
+      if (!p) return;
+      const existing = purchaseCart.find(c => c.productId === pid);
+      if (existing) existing.qty += 1;
+      else purchaseCart.push({ productId: pid, name: p.name, price: p.buyPrice || 0, qty: 1 });
+      updatePurchaseCartBar();
+      toast(p.name + ' اضافه شد');
+    }
+
+    function updatePurchaseCartBar() {
+      const bar = document.getElementById('purchaseCartBar');
+      if (!purchaseCart.length) { bar.classList.remove('show'); return; }
+      bar.classList.add('show');
+      document.getElementById('purchaseCartCount').textContent = purchaseCart.reduce((s, c) => s + c.qty, 0);
+      document.getElementById('purchaseCartTotal').textContent = formatMoney(purchaseCart.reduce((s, c) => s + c.qty * c.price, 0));
+    }
+
+    function openPurchaseCheckout() {
+      if (!purchaseCart.length) return;
+      const partyOptions = parties.filter(p => p.type === 'supplier' || !p.type)
+        .map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      let itemsHtml = purchaseCart.map((c, i) => `
+        <div class="invoice-item">
+          <div>
+            <div style="font-weight:600">${c.name}</div>
+            <div class="text-muted text-sm">${formatMoney(c.price)}</div>
+          </div>
+          <div class="qty-control">
+            <button class="qty-btn" onclick="changePurchaseQty(${i}, -1)">−</button>
+            <span>${c.qty}</span>
+            <button class="qty-btn" onclick="changePurchaseQty(${i}, 1)">+</button>
+          </div>
+        </div>
+      `).join('');
+      const total = purchaseCart.reduce((s, c) => s + c.qty * c.price, 0);
+      showModal(`
+        <h3>ثبت فاکتور خرید</h3>
+        <div class="form-row">
+          <label>تامین‌کننده</label>
+          <select id="purchase-party">
+            <option value="">— انتخاب کنید —</option>
+            ${partyOptions}
+          </select>
+        </div>
+        ${itemsHtml}
+        <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div>
+        <div class="form-row"><label>توضیحات</label><input id="purchase-note" /></div>
+        <div class="flex">
+          <button class="btn btn-primary flex-1" onclick="savePurchaseInvoice()">ثبت نهایی</button>
+          <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
+        </div>
+      `);
+    }
+
+    function changePurchaseQty(idx, delta) {
+      purchaseCart[idx].qty += delta;
+      if (purchaseCart[idx].qty <= 0) purchaseCart.splice(idx, 1);
+      updatePurchaseCartBar();
+      if (purchaseCart.length) openPurchaseCheckout();
+      else closeModal();
+    }
+
+    async function savePurchaseInvoice() {
+      const partyId = document.getElementById('purchase-party')?.value;
+      const total = purchaseCart.reduce((s, c) => s + c.qty * c.price, 0);
+      const inv = {
+        type: 'purchase',
+        date: Date.now(),
+        partyId: partyId ? Number(partyId) : null,
+        items: purchaseCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, qty: c.qty })),
+        total,
+        note: document.getElementById('purchase-note')?.value || ''
+      };
+      for (const item of inv.items) {
+        const p = products.find(x => x.id === item.productId);
+        if (p) {
+          p.stock = (p.stock || 0) + item.qty;
+          await put('products', p);
+        }
+      }
+      await add('invoices', inv);
+      purchaseCart = [];
+      await loadAll();
+      closeModal();
+      updatePurchaseCartBar();
+      renderPurchaseProducts();
+      toast('فاکتور خرید ثبت شد');
+      showPage('dashboard');
+    }
+
+    // ========== Parties ==========
+    function renderParties() {
+      const el = document.getElementById('partiesList');
+      if (!parties.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">👥</div>طرف‌حسابی ثبت نشده</div>';
+        return;
+      }
+      el.innerHTML = parties.map(p => `
+        <div class="card" style="padding:12px 16px;cursor:pointer" onclick="openPartyModal(${p.id})">
+          <div style="font-weight:600">${p.name}</div>
+          <div class="text-muted text-sm">${p.type === 'supplier' ? 'تامین‌کننده' : (p.type === 'customer' ? 'مشتری' : 'سایر')} ${p.phone ? '· ' + p.phone : ''}</div>
+        </div>
+      `).join('');
+    }
+
+    function openPartyModal(id) {
+      const p = id ? parties.find(x => x.id === id) : null;
+      showModal(`
+        <h3>${p ? 'ویرایش طرف‌حساب' : 'طرف‌حساب جدید'}</h3>
+        <div class="form-row"><label>نام</label><input id="party-name" value="${p?.name || ''}" /></div>
+        <div class="form-row">
+          <label>نوع</label>
+          <select id="party-type">
+            <option value="supplier" ${p?.type === 'supplier' ? 'selected' : ''}>تامین‌کننده</option>
+            <option value="customer" ${p?.type === 'customer' ? 'selected' : ''}>مشتری</option>
+            <option value="other" ${p?.type === 'other' ? 'selected' : ''}>سایر</option>
+          </select>
+        </div>
+        <div class="form-row"><label>شماره تماس</label><input id="party-phone" value="${p?.phone || ''}" /></div>
+        <div class="form-row"><label>توضیحات</label><input id="party-note" value="${p?.note || ''}" /></div>
+        <div class="flex">
+          <button class="btn btn-primary flex-1" onclick="saveParty(${p?.id || 'null'})">ذخیره</button>
+          ${p ? `<button class="btn btn-danger btn-sm" onclick="deleteParty(${p.id})">حذف</button>` : ''}
+          <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
+        </div>
+      `);
+    }
+
+    async function saveParty(id) {
+      const name = document.getElementById('party-name').value.trim();
+      if (!name) return toast('نام را وارد کنید');
+      const data = {
+        name,
+        type: document.getElementById('party-type').value,
+        phone: document.getElementById('party-phone').value.trim(),
+        note: document.getElementById('party-note').value.trim()
+      };
+      if (id) { data.id = id; await put('parties', data); }
+      else await add('parties', data);
+      await loadAll();
+      closeModal();
+      renderParties();
+      toast('ذخیره شد');
+    }
+
+    async function deleteParty(id) {
+      if (!confirm('حذف شود؟')) return;
+      await remove('parties', id);
+      await loadAll();
+      closeModal();
+      renderParties();
+      toast('حذف شد');
+    }
+
+    // ========== Checks ==========
+    function renderChecks() {
+      const el = document.getElementById('checksList');
+      if (!checks.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">📝</div>چکی ثبت نشده</div>';
+        return;
+      }
+      const sorted = [...checks].sort((a, b) => b.date - a.date);
+      el.innerHTML = sorted.map(c => `
+        <div class="card" style="padding:12px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:start">
+            <div>
+              <div style="font-weight:600">${formatMoney(c.amount)}</div>
+              <div class="text-muted text-sm">${c.partyName || '—'} · سررسید: ${c.dueDate || '—'}</div>
+              <div class="text-muted text-sm">${c.note || ''}</div>
+            </div>
+            <span class="badge ${c.status === 'paid' ? 'badge-green' : 'badge-yellow'}">${c.status === 'paid' ? 'پرداخت شده' : 'در انتظار'}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openCheckModal() {
+      const partyOptions = parties.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      showModal(`
+        <h3>ثبت چک</h3>
+        <div class="form-row"><label>مبلغ</label><input id="chk-amount" type="number" /></div>
+        <div class="form-row"><label>طرف حساب</label>
+          <select id="chk-party"><option value="">—</option>${partyOptions}</select>
+        </div>
+        <div class="form-row"><label>شماره چک</label><input id="chk-number" /></div>
+        <div class="form-row"><label>تاریخ سررسید</label><input id="chk-due" type="date" /></div>
+        <div class="form-row"><label>توضیحات</label><input id="chk-note" /></div>
+        <div class="flex">
+          <button class="btn btn-primary flex-1" onclick="saveCheck()">ذخیره</button>
+          <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
+        </div>
+      `);
+    }
+
+    async function saveCheck() {
+      const amount = Number(document.getElementById('chk-amount').value);
+      if (!amount) return toast('مبلغ را وارد کنید');
+      const partyId = document.getElementById('chk-party').value;
+      const party = parties.find(p => p.id === Number(partyId));
+      await add('checks', {
+        amount,
+        partyId: partyId ? Number(partyId) : null,
+        partyName: party?.name || '',
+        number: document.getElementById('chk-number').value,
+        dueDate: document.getElementById('chk-due').value,
+        note: document.getElementById('chk-note').value,
+        status: 'pending',
+        date: Date.now()
+      });
+      await loadAll();
+      closeModal();
+      renderChecks();
+      toast('چک ثبت شد');
+    }
+
+    // ========== Staff Notes ==========
+    function renderStaff() {
+      const el = document.getElementById('staffList');
+      if (!staffNotes.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">✍️</div>یادداشتی ثبت نشده</div>';
+        return;
+      }
+      const sorted = [...staffNotes].sort((a, b) => b.date - a.date);
+      el.innerHTML = sorted.map(n => `
+        <div class="card" style="padding:12px 16px">
+          <div style="font-weight:600">${n.staffName}</div>
+          <div style="color:var(--primary);font-weight:600">${formatMoney(n.amount)}</div>
+          <div class="text-muted text-sm">${formatDate(n.date)} · ${n.note || ''}</div>
+        </div>
+      `).join('');
+    }
+
+    function openStaffModal() {
+      showModal(`
+        <h3>پرداخت به فروشنده</h3>
+        <div class="form-row"><label>نام فروشنده</label><input id="staff-name" placeholder="مثال: مریم" /></div>
+        <div class="form-row"><label>مبلغ</label><input id="staff-amount" type="number" /></div>
+        <div class="form-row"><label>توضیحات</label><input id="staff-note" placeholder="بابت ..." /></div>
+        <div class="flex">
+          <button class="btn btn-primary flex-1" onclick="saveStaffNote()">ذخیره</button>
+          <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
+        </div>
+      `);
+    }
+
+    async function saveStaffNote() {
+      const name = document.getElementById('staff-name').value.trim();
+      const amount = Number(document.getElementById('staff-amount').value);
+      if (!name || !amount) return toast('نام و مبلغ را وارد کنید');
+      await add('staffNotes', {
+        staffName: name,
+        amount,
+        note: document.getElementById('staff-note').value.trim(),
+        date: Date.now()
+      });
+      await loadAll();
+      closeModal();
+      renderStaff();
+      toast('یادداشت ذخیره شد');
+    }
+
+    // ========== Reports ==========
+    function renderReports() {
+      const stockEl = document.getElementById('reportStock');
+      stockEl.innerHTML = products.length ? products.map(p => `
+        <div class="list-item">
+          <div>${p.name}</div>
+          <div style="font-weight:600">${(p.stock || 0).toLocaleString('fa-IR')}</div>
+        </div>
+      `).join('') : '<div class="text-muted">کالایی نیست</div>';
+
+      const sales = invoices.filter(i => i.type === 'sale').sort((a, b) => b.date - a.date).slice(0, 20);
+      document.getElementById('reportSales').innerHTML = sales.length ? sales.map(i => `
+        <div class="list-item">
+          <div>
+            <div>#${i.id} · ${formatDate(i.date)}</div>
+            <div class="text-muted text-sm">${i.items?.length || 0} قلم</div>
+          </div>
+          <div style="font-weight:600">${formatMoney(i.total)}</div>
+        </div>
+      `).join('') : '<div class="text-muted">فاکتور فروشی نیست</div>';
+
+      const purchases = invoices.filter(i => i.type === 'purchase').sort((a, b) => b.date - a.date).slice(0, 20);
+      document.getElementById('reportPurchases').innerHTML = purchases.length ? purchases.map(i => {
+        const party = parties.find(p => p.id === i.partyId);
+        return `
+          <div class="list-item">
+            <div>
+              <div>#${i.id} · ${formatDate(i.date)}</div>
+              <div class="text-muted text-sm">${party?.name || '—'} · ${i.items?.length || 0} قلم</div>
+            </div>
+            <div style="font-weight:600">${formatMoney(i.total)}</div>
+          </div>
+        `;
+      }).join('') : '<div class="text-muted">فاکتور خریدی نیست</div>';
+    }
+
+    // ========== Backup ==========
+    async function exportBackup() {
+      const data = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        products,
+        parties,
+        invoices,
+        checks,
+        staffNotes
+      };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hesab-man-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('بک‌آپ دانلود شد');
+    }
+
+    async function importBackup(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const data = JSON.parse(text);
+        if (!data.products) throw new Error('فایل نامعتبر');
+        // clear and re-import
+        for (const storeName of ['products', 'parties', 'invoices', 'checks', 'staffNotes']) {
+          const all = await getAll(storeName);
+          for (const item of all) await remove(storeName, item.id);
+        }
+        for (const p of (data.products || [])) await add('products', p);
+        for (const p of (data.parties || [])) await add('parties', p);
+        for (const i of (data.invoices || [])) await add('invoices', i);
+        for (const c of (data.checks || [])) await add('checks', c);
+        for (const s of (data.staffNotes || [])) await add('staffNotes', s);
+        await loadAll();
+        toast('بازیابی با موفقیت انجام شد');
+        showPage('dashboard');
+      } catch (err) {
+        toast('خطا در خواندن فایل');
+        console.error(err);
+      }
+      e.target.value = '';
+    }
+
+    // ========== Init ==========
+    (async () => {
+      await openDB();
+      await loadAll();
+      // Register service worker for offline
+      if ('serviceWorker' in navigator) {
+        try {
+          await navigator.serviceWorker.register('sw.js');
+        } catch (e) {}
+      }
+    })();
+
+    // Close modal on overlay click
+    document.getElementById('modal').addEventListener('click', (e) => {
+      if (e.target.id === 'modal') closeModal();
+    });
+  </script>
+</body>
+</html>
