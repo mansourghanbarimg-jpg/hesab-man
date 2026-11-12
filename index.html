@@ -413,13 +413,35 @@
       </div>
       <p class="text-muted">محاسبه بر اساس فاکتورهای فروش، بهای خرید ثبت‌شده برای هر قلم و برگشت از فروش است. برای فاکتورهای قدیمی، بهای خرید فعلی کالا مبنا قرار می‌گیرد.</p>
     </div>
-    <div class="card">
-      <div class="section-title" style="margin-top:0">جستجو و مرتب‌سازی فاکتورها</div>
-      <input type="text" class="search-box" id="invoiceSearch" placeholder="نام مشتری/تأمین‌کننده یا شماره فاکتور..." oninput="renderReports()" />
-      <select id="invoiceSort" onchange="renderReports()"><option value="new">جدیدترین ابتدا</option><option value="old">قدیمی‌ترین ابتدا</option><option value="high">بیشترین مبلغ</option><option value="low">کمترین مبلغ</option></select>
+    <div class="flex" style="flex-wrap:wrap;gap:8px;margin:12px 0">
+      <button class="btn btn-primary flex-1" id="reportTab-ledger" onclick="setReportTab('ledger')">گردش حساب اشخاص</button>
+      <button class="btn btn-outline flex-1" id="reportTab-sales" onclick="setReportTab('sales')">فاکتورهای فروش</button>
+      <button class="btn btn-outline flex-1" id="reportTab-purchases" onclick="setReportTab('purchases')">فاکتورهای خرید</button>
     </div>
-    <div class="card"><div class="section-title" style="margin-top:0">فاکتورهای فروش و برگشت</div><div id="reportSales"></div></div>
-    <div class="card"><div class="section-title" style="margin-top:0">فاکتورهای خرید و برگشت</div><div id="reportPurchases"></div></div>
+    <div id="reportLedgerPanel">
+      <div class="card">
+        <div class="section-title" style="margin-top:0">مانده حساب طرف‌حساب‌ها</div>
+        <input type="text" class="search-box" id="partyLedgerSearch" placeholder="جستجوی نام طرف‌حساب..." oninput="renderPartyLedgers()" />
+        <p class="text-muted text-sm">مانده بر اساس فاکتورها، برگشت‌ها و اسناد پرداختی ثبت‌شده محاسبه می‌شود.</p>
+        <div id="partyLedgerList"></div>
+      </div>
+    </div>
+    <div id="reportSalesPanel" class="hidden">
+      <div class="card">
+        <div class="section-title" style="margin-top:0">فاکتورهای فروش و برگشت از فروش</div>
+        <input type="text" class="search-box" id="invoiceSalesSearch" placeholder="جستجوی نام مشتری یا شماره فاکتور..." oninput="renderInvoiceReport('sale')" />
+        <select id="invoiceSalesSort" onchange="renderInvoiceReport('sale')"><option value="new">جدیدترین ابتدا</option><option value="old">قدیمی‌ترین ابتدا</option><option value="high">بیشترین مبلغ</option><option value="low">کمترین مبلغ</option></select>
+        <div id="reportSales"></div>
+      </div>
+    </div>
+    <div id="reportPurchasesPanel" class="hidden">
+      <div class="card">
+        <div class="section-title" style="margin-top:0">فاکتورهای خرید و برگشت از خرید</div>
+        <input type="text" class="search-box" id="invoicePurchasesSearch" placeholder="جستجوی نام تأمین‌کننده یا شماره فاکتور..." oninput="renderInvoiceReport('purchase')" />
+        <select id="invoicePurchasesSort" onchange="renderInvoiceReport('purchase')"><option value="new">جدیدترین ابتدا</option><option value="old">قدیمی‌ترین ابتدا</option><option value="high">بیشترین مبلغ</option><option value="low">کمترین مبلغ</option></select>
+        <div id="reportPurchases"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Backup -->
@@ -1218,29 +1240,217 @@
       const profit = relevant.filter(i=>i.type==='sale').reduce((s,i)=>s+invoiceProfit(i),0) - relevant.filter(i=>i.type==='saleReturn').reduce((s,i)=>s+(i.profitAmount ?? invoiceProfit({...i,type:'sale'})),0);
       return {sales,profit};
     }
+    let activeReportTab = 'ledger';
+
+    function setReportTab(tab) {
+      activeReportTab = tab;
+      const panels = {ledger:'reportLedgerPanel', sales:'reportSalesPanel', purchases:'reportPurchasesPanel'};
+      Object.entries(panels).forEach(([key,id]) => document.getElementById(id).classList.toggle('hidden', key !== tab));
+      Object.entries({ledger:'reportTab-ledger',sales:'reportTab-sales',purchases:'reportTab-purchases'}).forEach(([key,id]) => {
+        const btn=document.getElementById(id);
+        btn.classList.toggle('btn-primary', key===tab);
+        btn.classList.toggle('btn-outline', key!==tab);
+      });
+      if(tab==='ledger') renderPartyLedgers();
+      if(tab==='sales') renderInvoiceReport('sale');
+      if(tab==='purchases') renderInvoiceReport('purchase');
+    }
+
+    function partyAccountData(party) {
+      const isSupplier = party.type === 'supplier';
+      const isCustomer = party.type === 'customer';
+      const entries = [];
+      for (const inv of invoices) {
+        if (Number(inv.partyId) !== Number(party.id)) continue;
+        let amount = Number(inv.total || 0);
+        let kind = invoiceKindLabel(inv.type);
+        let signed = 0;
+        if (isSupplier) {
+          if (inv.type === 'purchase') signed = amount;
+          else if (inv.type === 'purchaseReturn') signed = -amount;
+        } else if (isCustomer) {
+          if (inv.type === 'sale') signed = amount;
+          else if (inv.type === 'saleReturn') signed = -amount;
+        } else {
+          if (inv.type === 'purchase') signed = amount;
+          else if (inv.type === 'purchaseReturn') signed = -amount;
+          else if (inv.type === 'sale') signed = amount;
+          else if (inv.type === 'saleReturn') signed = -amount;
+        }
+        if (signed !== 0) entries.push({
+          date: Number(inv.date || 0), signed, title: kind,
+          ref: `فاکتور ${inv.invoiceNumber || inv.id}`, invoiceId: inv.id,
+          amount: Math.abs(signed), note: inv.note || '', source:'invoice'
+        });
+      }
+      for (const doc of paymentDocuments) {
+        if (Number(doc.partyId) !== Number(party.id)) continue;
+        if (doc.kind === 'partyPayment') {
+          const amount=Number(doc.amount||0);
+          if(amount) entries.push({
+            date:Number(doc.date||0),
+            signed:party.type==='supplier' ? (doc.direction==='pay'?-amount:amount) :
+              party.type==='customer' ? (doc.direction==='receive'?-amount:amount) :
+              (doc.direction==='pay'?-amount:amount),
+            title:doc.direction==='receive'?'دریافت وجه از طرف‌حساب':'پرداخت به طرف‌حساب',
+            ref:'سند مستقل', amount, note:doc.note||doc.info||'',
+            method:paymentMethodLabel(doc.method), source:'payment'
+          });
+          continue;
+        }
+        const inv = invoices.find(x => Number(x.id) === Number(doc.invoiceId));
+        if (!inv) continue;
+        const relevant = isSupplier ? inv.type === 'purchase' : isCustomer ? inv.type === 'sale' : ['purchase','sale'].includes(inv.type);
+        if (!relevant) continue;
+        const amount = Number(doc.amount || 0);
+        if (!amount) continue;
+        entries.push({
+          date: Number(doc.date || inv.date || 0),
+          signed: -amount,
+          title: isSupplier ? 'پرداخت به تأمین‌کننده' : 'دریافت از مشتری',
+          ref: `سند پرداخت فاکتور ${inv.invoiceNumber || inv.id}`,
+          invoiceId: inv.id, amount, note: doc.note || doc.info || '',
+          method: paymentMethodLabel(doc.method), source:'payment'
+        });
+      }
+      entries.sort((a,b)=>a.date-b.date || (a.source==='invoice'?-1:1));
+      let balance=0;
+      for (const e of entries) { balance += e.signed; e.runningBalance=balance; }
+      return {entries,balance,isSupplier,isCustomer};
+    }
+
+    function partyBalanceText(party, balance) {
+      if (Math.abs(balance) < 0.0001) return {label:'تسویه کامل', tone:'success'};
+      if (party.type === 'supplier') return balance > 0
+        ? {label:'شما به این تأمین‌کننده بدهکارید',tone:'danger'}
+        : {label:'این تأمین‌کننده به شما بدهکار است',tone:'success'};
+      if (party.type === 'customer') return balance > 0
+        ? {label:'این مشتری به شما بدهکار است',tone:'warning'}
+        : {label:'شما به این مشتری بدهکارید',tone:'danger'};
+      return balance > 0 ? {label:'مانده بدهکار',tone:'warning'} : {label:'مانده بستانکار',tone:'success'};
+    }
+
+    function renderPartyLedgers() {
+      const el=document.getElementById('partyLedgerList');
+      if(!el)return;
+      const q=(document.getElementById('partyLedgerSearch')?.value||'').trim().toLowerCase();
+      const list=parties.filter(p=>!q || (p.name||'').toLowerCase().includes(q))
+        .map(p=>({party:p,data:partyAccountData(p)}))
+        .sort((a,b)=>Math.abs(b.data.balance)-Math.abs(a.data.balance));
+      if(!list.length){el.innerHTML='<div class="empty-state">طرف‌حسابی یافت نشد</div>';return;}
+      el.innerHTML=list.map(({party:p,data})=>{
+        const status=partyBalanceText(p,data.balance);
+        const amount=Math.abs(data.balance);
+        return `<div class="card" style="padding:12px;margin-top:10px;cursor:pointer" onclick="openPartyLedger(${p.id})">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+            <div><b>${p.name}</b><div class="text-muted text-sm">${p.type==='supplier'?'تأمین‌کننده':p.type==='customer'?'مشتری':'سایر'} · ${data.entries.length} گردش</div></div>
+            <b>${formatMoney(amount)}</b>
+          </div>
+          <div class="text-sm" style="margin-top:6px;color:${status.tone==='danger'?'var(--danger)':status.tone==='success'?'var(--primary)':'var(--warning)'}">${status.label}</div>
+        </div>`;
+      }).join('');
+    }
+
+    function openPartyLedger(partyId) {
+      const party=parties.find(p=>Number(p.id)===Number(partyId));
+      if(!party)return;
+      const data=partyAccountData(party);
+      const status=partyBalanceText(party,data.balance);
+      let rows='';
+      if(data.entries.length){
+        rows=data.entries.map(e=>`<div class="list-item" style="align-items:flex-start;gap:8px">
+          <div style="flex:1">
+            <b>${e.title}</b>
+            <div class="text-muted text-sm">${e.ref} · ${jalaliParts(e.date)}</div>
+            ${e.method?`<div class="text-muted text-sm">روش: ${e.method}</div>`:''}
+            ${e.note?`<div class="text-muted text-sm">${e.note}</div>`:''}
+          </div>
+          <div style="text-align:left;min-width:112px">
+            <b style="color:${e.signed>0?'var(--danger)':'var(--primary)'}">${e.signed>0?'+':'−'} ${formatMoney(e.amount)}</b>
+            <div class="text-muted text-sm">مانده: ${formatMoney(Math.abs(e.runningBalance))}</div>
+          </div>
+        </div>`).join('');
+      } else rows='<div class="empty-state">هنوز گردش مالی برای این طرف‌حساب ثبت نشده است</div>';
+      showModal(`<h3>گردش حساب ${party.name}</h3>
+        <div class="card" style="padding:12px;margin:10px 0">
+          <div class="text-muted text-sm">${party.type==='supplier'?'تأمین‌کننده':party.type==='customer'?'مشتری':'سایر'}</div>
+          <div style="font-size:1.25rem;font-weight:800;margin:5px 0">${formatMoney(Math.abs(data.balance))}</div>
+          <div class="text-sm">${status.label}</div>
+          <div class="text-muted text-sm" style="margin-top:6px">جمع گردش‌ها: ${data.entries.length}</div>
+        </div>
+        <div style="max-height:52vh;overflow:auto">${rows}</div>
+        <div class="flex mt-2" style="flex-wrap:wrap">
+          <button class="btn btn-primary flex-1" onclick="openPartyTransaction(${party.id})">ثبت پرداخت / دریافت</button>
+          <button class="btn btn-outline flex-1" onclick="closeModal()">بستن</button>
+        </div>`);
+    }
+
+    function openPartyTransaction(partyId) {
+      const party=parties.find(p=>Number(p.id)===Number(partyId));
+      if(!party)return;
+      const direction=party.type==='customer'?'receive':'pay';
+      const today=jalaliParts(Date.now());
+      showModal(`<h3>ثبت ${direction==='pay'?'پرداخت به':'دریافت از'} ${party.name}</h3>
+        <div class="form-row"><label>نوع عملیات</label><select id="pt-direction">
+          <option value="pay" ${direction==='pay'?'selected':''}>پرداخت به طرف‌حساب</option>
+          <option value="receive" ${direction==='receive'?'selected':''}>دریافت از طرف‌حساب</option>
+        </select></div>
+        <div class="form-row"><label>مبلغ</label><input id="pt-amount" type="number" min="1" placeholder="مبلغ به تومان"></div>
+        <div class="form-row"><label>روش</label><select id="pt-method"><option value="cash">نقدی</option><option value="card">کارت</option><option value="card2card">کارت به کارت</option><option value="transfer">حواله</option><option value="check">چک</option></select></div>
+        <div class="form-row"><label>تاریخ شمسی</label><input id="pt-date" value="${today}" placeholder="۱۴۰۵/۰۸/۲۲"></div>
+        <div class="form-row"><label>شماره چک / توضیح پرداخت</label><input id="pt-info"></div>
+        <div class="form-row"><label>یادداشت</label><input id="pt-note"></div>
+        <div class="flex"><button class="btn btn-primary flex-1" onclick="savePartyTransaction(${party.id})">ثبت</button><button class="btn btn-outline" onclick="openPartyLedger(${party.id})">انصراف</button></div>`);
+    }
+
+    async function savePartyTransaction(partyId) {
+      const party=parties.find(p=>Number(p.id)===Number(partyId));
+      const amount=Number(document.getElementById('pt-amount').value);
+      const jalali=document.getElementById('pt-date').value.trim();
+      const date=parseJalaliDate(jalali);
+      if(!amount||amount<=0)return toast('مبلغ معتبر وارد کنید');
+      if(!date)return toast('تاریخ شمسی معتبر وارد کنید');
+      const direction=document.getElementById('pt-direction').value;
+      const method=document.getElementById('pt-method').value;
+      const info=document.getElementById('pt-info').value.trim();
+      const note=document.getElementById('pt-note').value.trim();
+      await add('paymentDocuments',{
+        kind:'partyPayment',partyId:Number(partyId),partyName:party.name,
+        direction,amount,method,date,jalaliDate:jalali,info,note,
+        invoiceId:null,invoiceType:party.type==='customer'?'sale':'purchase'
+      });
+      await loadAll();
+      openPartyLedger(partyId);
+      toast('گردش مالی ثبت شد');
+    }
+
+    function renderInvoiceReport(type) {
+      const isSale=type==='sale';
+      const searchId=isSale?'invoiceSalesSearch':'invoicePurchasesSearch';
+      const sortId=isSale?'invoiceSalesSort':'invoicePurchasesSort';
+      const targetId=isSale?'reportSales':'reportPurchases';
+      const q=(document.getElementById(searchId)?.value||'').trim().toLowerCase();
+      const sort=document.getElementById(sortId)?.value||'new';
+      let arr=invoices.filter(i=>isSale?['sale','saleReturn'].includes(i.type):['purchase','purchaseReturn'].includes(i.type));
+      if(q)arr=arr.filter(i=>String(i.id).includes(q)||String(i.invoiceNumber||'').toLowerCase().includes(q)||invoicePartyName(i).toLowerCase().includes(q)||invoiceKindLabel(i.type).toLowerCase().includes(q));
+      arr.sort((a,b)=>sort==='old'?a.date-b.date:sort==='high'?(b.total||0)-(a.total||0):sort==='low'?(a.total||0)-(b.total||0):b.date-a.date);
+      const render=items=>items.length?items.map(i=>`<div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})"><div><div><b>${invoiceKindLabel(i.type)} #${i.invoiceNumber||i.id}</b> · ${jalaliParts(i.date)}</div><div class="text-muted text-sm">${invoicePartyName(i)||'بدون طرف‌حساب'} · ${(i.items||[]).length} قلم</div></div><div style="font-weight:600">${formatMoney(i.total)}</div></div>`).join(''):'<div class="text-muted">فاکتوری یافت نشد</div>';
+      document.getElementById(targetId).innerHTML=render(arr);
+    }
+
     function renderReports() {
       const now = new Date(), dayStart = new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime();
       const monthStart = new Date(now.getFullYear(),now.getMonth(),1).getTime(), yearStart = new Date(now.getFullYear(),0,1).getTime();
       const day = periodTotals(dayStart,dayStart+86400000), month=periodTotals(monthStart,new Date(now.getFullYear(),now.getMonth()+1,1).getTime()), year=periodTotals(yearStart,new Date(now.getFullYear()+1,0,1).getTime());
       for (const [id,val] of [['day-sales',day.sales],['day-net',day.profit],['month-sales',month.sales],['month-net',month.profit],['year-sales',year.sales],['year-net',year.profit]]) document.getElementById('profit-'+id).textContent = Number(val).toLocaleString('fa-IR');
-      const q=(document.getElementById('invoiceSearch')?.value||'').trim().toLowerCase();
-      const sort=document.getElementById('invoiceSort')?.value||'new';
-      const filter=(type)=>{
-        let arr=invoices.filter(i=>i.type===type || (type==='sale'&&i.type==='saleReturn') || (type==='purchase'&&i.type==='purchaseReturn'));
-        if(q) arr=arr.filter(i=>String(i.id).includes(q)||String(i.invoiceNumber||'').toLowerCase().includes(q)||invoicePartyName(i).toLowerCase().includes(q)||invoiceKindLabel(i.type).toLowerCase().includes(q));
-        arr.sort((a,b)=>sort==='old'?a.date-b.date:sort==='high'?(b.total||0)-(a.total||0):sort==='low'?(a.total||0)-(b.total||0):b.date-a.date);
-        return arr;
-      };
-      const render=(arr)=>arr.length?arr.map(i=>`<div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})"><div><div><b>${invoiceKindLabel(i.type)} #${i.invoiceNumber||i.id}</b> · ${jalaliParts(i.date)}</div><div class="text-muted text-sm">${invoicePartyName(i)||'بدون طرف‌حساب'} · ${(i.items||[]).length} قلم</div></div><div style="font-weight:600">${formatMoney(i.total)}</div></div>`).join(''):'<div class="text-muted">فاکتوری یافت نشد</div>';
-      document.getElementById('reportSales').innerHTML=render(filter('sale'));
-      document.getElementById('reportPurchases').innerHTML=render(filter('purchase'));
+      setReportTab(activeReportTab);
     }
 
     function renderPayments() {
       const el=document.getElementById('paymentsList'), q=(document.getElementById('paymentSearch')?.value||'').trim().toLowerCase();
       let docs=[...paymentDocuments].sort((a,b)=>(b.date||0)-(a.date||0));
       if(q) docs=docs.filter(d=>String(d.invoiceId).includes(q)||(d.partyName||'').toLowerCase().includes(q)||paymentMethodLabel(d.method).toLowerCase().includes(q)||(d.checkNum||'').toLowerCase().includes(q));
-      el.innerHTML=docs.length?docs.map(d=>`<div class="card"><div style="display:flex;justify-content:space-between;gap:8px"><b>${d.invoiceType==='sale'?'دریافت':'پرداخت'} · فاکتور #${d.invoiceId}</b><b>${formatMoney(d.amount)}</b></div><div class="text-muted text-sm">${d.partyName||'بدون طرف‌حساب'} · ${paymentMethodLabel(d.method)} · ${d.jalaliDate||jalaliParts(d.date)}</div>${d.checkNum?`<div class="text-sm">شماره چک: ${d.checkNum} ${d.checkDue?'· سررسید: '+d.checkDue:''}</div>`:''}${d.info?`<div class="text-muted text-sm">${d.info}</div>`:''}${d.balance!==undefined?`<div class="text-sm">${d.balance>0?'بدهکار فاکتور':d.balance<0?'بستانکار':'تسویه'}: ${formatMoney(Math.abs(d.balance))}</div>`:''}<button class="btn btn-outline btn-sm mt-2" onclick="editPayment(${d.id})">ویرایش سند</button></div>`).join(''):'<div class="empty-state">سند پرداختی ثبت نشده است</div>';
+      el.innerHTML=docs.length?docs.map(d=>`<div class="card"><div style="display:flex;justify-content:space-between;gap:8px"><b>${d.kind==='partyPayment'?(d.direction==='receive'?'دریافت مستقل':'پرداخت مستقل'):(d.invoiceType==='sale'?'دریافت':'پرداخت')+' · فاکتور #'+d.invoiceId}</b><b>${formatMoney(d.amount)}</b></div><div class="text-muted text-sm">${d.partyName||'بدون طرف‌حساب'} · ${paymentMethodLabel(d.method)} · ${d.jalaliDate||jalaliParts(d.date)}</div>${d.checkNum?`<div class="text-sm">شماره چک: ${d.checkNum} ${d.checkDue?'· سررسید: '+d.checkDue:''}</div>`:''}${d.info?`<div class="text-muted text-sm">${d.info}</div>`:''}${d.balance!==undefined?`<div class="text-sm">${d.balance>0?'بدهکار فاکتور':d.balance<0?'بستانکار':'تسویه'}: ${formatMoney(Math.abs(d.balance))}</div>`:''}${d.kind==='partyPayment'?'<div class="text-sm">سند مستقل از فاکتور</div>':`<button class="btn btn-outline btn-sm mt-2" onclick="editPayment(${d.id})">ویرایش سند</button>`}</div>`).join(''):'<div class="empty-state">سند پرداختی ثبت نشده است</div>';
     }
     function editPayment(id) {
       const d=paymentDocuments.find(x=>x.id===id); if(!d)return;
