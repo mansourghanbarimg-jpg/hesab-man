@@ -849,13 +849,22 @@
       const dateStr = parseJalaliDate(document.getElementById('sale-date')?.value) || null;
       const payMethod = document.getElementById('sale-pay-method')?.value || 'cash';
       if(!dateStr) return toast('تاریخ شمسی معتبر وارد کنید (مثلاً ۱۴۰۵/۰۸/۲۱)');
+      if(payMethod==='mixed') {
+        const cash=Number(document.getElementById('sale-mixed-cash')?.value||0);
+        const chk=Number(document.getElementById('sale-mixed-check')?.value||0);
+        if(!Number.isFinite(cash)||!Number.isFinite(chk)||cash<0||chk<0) return toast('مبالغ نقد و چک باید صفر یا بیشتر باشند');
+      }
+      if(payMethod!=='credit' && payMethod!=='mixed') {
+        const paid=Number(document.getElementById('sale-paid-amount')?.value||0);
+        if(!Number.isFinite(paid)||paid<0) return toast('مبلغ پرداختی معتبر نیست');
+      }
       const inv = {
         type: 'sale',
         date: dateStr || Date.now(),
         invoiceNumber: document.getElementById('sale-invoice-number')?.value.trim() || '',
         items: saleCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, costPrice: c.costPrice || 0, qty: c.qty })),
         total,
-        paidAmount: Math.max(0,Number(document.getElementById('sale-paid-amount')?.value||0)),
+        paidAmount: payMethod==='credit' ? 0 : payMethod==='mixed' ? Math.max(0,Number(document.getElementById('sale-mixed-cash')?.value||0))+Math.max(0,Number(document.getElementById('sale-mixed-check')?.value||0)) : Math.max(0,Number(document.getElementById('sale-paid-amount')?.value||0)),
         payMethod,
         payInfo: document.getElementById('sale-pay-info')?.value || '',
         checkNum: document.getElementById('sale-check-num')?.value || '',
@@ -999,12 +1008,25 @@
 
     async function addInvoicePaymentDocs(inv,prefix) {
       const method=inv.payMethod;
+      if(method==='credit') {
+        // Credit invoice: the full invoice remains outstanding; no payment document is created.
+        inv.paidAmount=0;
+        await put('invoices',inv);
+        return;
+      }
       if(method==='mixed'){
-        const cash=Number(document.getElementById(prefix+'-mixed-cash')?.value||0), chk=Number(document.getElementById(prefix+'-mixed-check')?.value||0);
-        if(cash<0||chk<0) throw new Error('مبالغ ترکیبی معتبر نیستند'); inv.paidAmount=cash+chk; await put('invoices',inv);
+        const cash=Number(document.getElementById(prefix+'-mixed-cash')?.value||0);
+        const chk=Number(document.getElementById(prefix+'-mixed-check')?.value||0);
+        if(cash<0||chk<0) throw new Error('مبالغ ترکیبی معتبر نیستند');
+        inv.paidAmount=cash+chk;
+        await put('invoices',inv);
         if(cash>0) await add('paymentDocuments',{...ensurePaymentForInvoice({...inv,payMethod:'cash',paidAmount:cash}),method:'cash',amount:cash});
         if(chk>0) await add('paymentDocuments',{...ensurePaymentForInvoice({...inv,payMethod:'check',paidAmount:chk}),method:'check',amount:chk,checkNum:document.getElementById(prefix+'-check-num')?.value||'',checkDue:document.getElementById(prefix+'-check-due')?.value||''});
-      } else await add('paymentDocuments',ensurePaymentForInvoice(inv));
+        return;
+      }
+      const paid=Number(inv.paidAmount||0);
+      if(paid>0) await add('paymentDocuments',ensurePaymentForInvoice(inv));
+      else { inv.paidAmount=0; await put('invoices',inv); }
     }
 
     async function savePurchaseInvoice() {
@@ -1013,6 +1035,15 @@
       const dateStr = parseJalaliDate(document.getElementById('purchase-date')?.value) || null;
       const payMethod = document.getElementById('purchase-pay-method')?.value || 'cash';
       if(!dateStr) return toast('تاریخ شمسی معتبر وارد کنید (مثلاً ۱۴۰۵/۰۸/۲۱)');
+      if(payMethod==='mixed') {
+        const cash=Number(document.getElementById('purchase-mixed-cash')?.value||0);
+        const chk=Number(document.getElementById('purchase-mixed-check')?.value||0);
+        if(!Number.isFinite(cash)||!Number.isFinite(chk)||cash<0||chk<0) return toast('مبالغ نقد و چک باید صفر یا بیشتر باشند');
+      }
+      if(payMethod!=='credit' && payMethod!=='mixed') {
+        const paid=Number(document.getElementById('purchase-paid-amount')?.value||0);
+        if(!Number.isFinite(paid)||paid<0) return toast('مبلغ پرداختی معتبر نیست');
+      }
       const inv = {
         type: 'purchase',
         date: dateStr || Date.now(),
@@ -1020,7 +1051,7 @@
         partyId: partyId ? Number(partyId) : null,
         items: purchaseCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, costPrice: c.costPrice || c.price, qty: c.qty })),
         total,
-        paidAmount: Math.max(0,Number(document.getElementById('purchase-paid-amount')?.value||0)),
+        paidAmount: payMethod==='credit' ? 0 : payMethod==='mixed' ? Math.max(0,Number(document.getElementById('purchase-mixed-cash')?.value||0))+Math.max(0,Number(document.getElementById('purchase-mixed-check')?.value||0)) : Math.max(0,Number(document.getElementById('purchase-paid-amount')?.value||0)),
         payMethod,
         payInfo: document.getElementById('purchase-pay-info')?.value || '',
         checkNum: document.getElementById('purchase-check-num')?.value || '',
