@@ -1,9 +1,12 @@
-const CACHE = 'hesab-man-v2';
+const CACHE = 'hesab-man-v4';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icon.svg',\n  './icon-192.png',\n  './icon-512.png'
+  './apple-touch-icon.png',
+  './icon.svg',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 self.addEventListener('install', (e) => {
