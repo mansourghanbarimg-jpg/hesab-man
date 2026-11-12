@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#0f766e" />
   <title>حسابداری گالری پرشین</title>
-  <link rel="manifest" href="manifest.json" />
+  <link rel="manifest" href="manifest.json" />\n  <link rel="apple-touch-icon" href="icon-512.png" />
   <style>
     :root {
       --primary: #0f766e;
@@ -562,9 +562,9 @@
     function jalaliToday() { return jalaliParts(Date.now()).replace(/[^0-9۰-۹]/g,'/'); }
     function paymentMethodLabel(method) { return ({cash:'نقدی',card:'کارت',card2card:'کارت به کارت',transfer:'حواله',check:'چک',credit:'نسیه / بدهکار'})[method] || method || '—'; }
     function ensurePaymentForInvoice(inv, existingId) {
-      return { invoiceId: inv.id, invoiceType: inv.type, partyId: inv.partyId || null, partyName: inv.partyName || '', amount: inv.total || 0,
+      return { invoiceId: inv.id, invoiceType: inv.type, partyId: inv.partyId || null, partyName: inv.partyName || '', amount: inv.paidAmount ?? inv.total ?? 0,
         method: inv.payMethod || 'cash', info: inv.payInfo || '', checkNum: inv.checkNum || '', checkDue: inv.checkDue || '',
-        date: inv.date || Date.now(), jalaliDate: jalaliParts(inv.date || Date.now()), note: inv.note || '', ...(existingId ? {id:existingId} : {}) };
+        date: inv.date || Date.now(), jalaliDate: jalaliParts(inv.date || Date.now()), note: inv.note || '', balance: (inv.total||0)-(inv.paidAmount??inv.total??0), ...(existingId ? {id:existingId} : {}) };
     }
     function toast(msg) {
       const el = document.getElementById('toast');
@@ -772,8 +772,7 @@
         <h3>ثبت فاکتور فروش</h3>
         <div class="form-row"><label>مشتری (اختیاری)</label><select id="sale-party"><option value="">بدون طرف‌حساب</option>${parties.filter(p=>p.type==='customer'||!p.type).map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}</select></div>
         ${itemsHtml}
-        <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div>
-        <div class="form-row"><label>تاریخ فاکتور</label><input type="date" id="sale-date" value="${today}" /></div>
+        <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div><div class="form-row"><label>مبلغ دریافتی</label><input id="sale-paid-amount" type="number" value="${total}" /></div><div class="form-row"><label>شماره فاکتور</label><input id="sale-invoice-number" placeholder="شماره فاکتور" /></div><div class="form-row"><label>تاریخ فاکتور (شمسی)</label><input id="sale-date" value="${jalaliToday()}" placeholder="۱۴۰۵/۰۸/۲۱" /></div>
         <div class="form-row">
           <label>روش دریافت</label>
           <select id="sale-pay-method" onchange="toggleSalePayDetails()">
@@ -782,7 +781,7 @@
             <option value="card2card">کارت به کارت</option>
             <option value="transfer">حواله</option>
             <option value="check">چک</option>
-            <option value="credit">نسیه / بدهکار</option>
+            <option value="credit">نسیه / بدهکار</option><option value="mixed">ترکیبی (نقد + چک)</option>
           </select>
         </div>
         <div id="sale-pay-details"></div>
@@ -799,7 +798,9 @@
       const method = document.getElementById('sale-pay-method')?.value;
       const box = document.getElementById('sale-pay-details');
       if (!box) return;
-      if (method === 'check') {
+      if (method === 'mixed') {
+        box.innerHTML = `<div class="form-row"><label>مبلغ نقدی</label><input id="sale-mixed-cash" type="number" value="0"></div><div class="form-row"><label>مبلغ چک</label><input id="sale-mixed-check" type="number" value="0"></div><div class="form-row"><label>شماره چک</label><input id="sale-check-num"></div><div class="form-row"><label>سررسید چک</label><input type="date" id="sale-check-due"></div>`;
+      } else if (method === 'check') {
         box.innerHTML = `
           <div class="form-row"><label>شماره چک</label><input id="sale-check-num" /></div>
           <div class="form-row"><label>تاریخ سررسید</label><input type="date" id="sale-check-due" /></div>
@@ -821,13 +822,16 @@
 
     async function saveSaleInvoice() {
       const total = saleCart.reduce((s, c) => s + c.qty * c.price, 0);
-      const dateStr = document.getElementById('sale-date')?.value;
+      const dateStr = parseJalaliDate(document.getElementById('sale-date')?.value) || null;
       const payMethod = document.getElementById('sale-pay-method')?.value || 'cash';
+      if(!dateStr) return toast('تاریخ شمسی معتبر وارد کنید (مثلاً ۱۴۰۵/۰۸/۲۱)');
       const inv = {
         type: 'sale',
-        date: dateStr ? new Date(dateStr).getTime() : Date.now(),
+        date: dateStr || Date.now(),
+        invoiceNumber: document.getElementById('sale-invoice-number')?.value.trim() || '',
         items: saleCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, costPrice: c.costPrice || 0, qty: c.qty })),
         total,
+        paidAmount: Math.max(0,Number(document.getElementById('sale-paid-amount')?.value||0)),
         payMethod,
         payInfo: document.getElementById('sale-pay-info')?.value || '',
         checkNum: document.getElementById('sale-check-num')?.value || '',
@@ -844,7 +848,7 @@
       }
       inv.partyId = Number(document.getElementById('sale-party')?.value) || null; inv.partyName = parties.find(p=>p.id===inv.partyId)?.name || '';
       inv.id = await add('invoices', inv);
-      await add('paymentDocuments', ensurePaymentForInvoice(inv));
+      await addInvoicePaymentDocs(inv,'sale');
       saleCart = [];
       await loadAll();
       closeModal();
@@ -920,8 +924,8 @@
           </select>
         </div>
         ${itemsHtml}
-        <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div>
-        <div class="form-row"><label>تاریخ فاکتور</label><input type="date" id="purchase-date" value="${today}" /></div>
+        <div style="margin:16px 0;font-weight:700;font-size:1.1rem">جمع: ${formatMoney(total)}</div><div class="form-row"><label>مبلغ پرداختی</label><input id="purchase-paid-amount" type="number" value="${total}" /></div>
+        <div class="form-row"><label>شماره فاکتور</label><input id="purchase-invoice-number" placeholder="شماره فاکتور تامین‌کننده" /></div><div class="form-row"><label>تاریخ فاکتور (شمسی)</label><input id="purchase-date" value="${jalaliToday()}" placeholder="۱۴۰۵/۰۸/۲۱" /></div>
         <div class="form-row">
           <label>روش پرداخت</label>
           <select id="purchase-pay-method" onchange="togglePurchasePayDetails()">
@@ -930,7 +934,7 @@
             <option value="card2card">کارت به کارت</option>
             <option value="transfer">حواله</option>
             <option value="check">چک</option>
-            <option value="credit">نسیه / بدهکار</option>
+            <option value="credit">نسیه / بدهکار</option><option value="mixed">ترکیبی (نقد + چک)</option>
           </select>
         </div>
         <div id="purchase-pay-details"></div>
@@ -947,7 +951,9 @@
       const method = document.getElementById('purchase-pay-method')?.value;
       const box = document.getElementById('purchase-pay-details');
       if (!box) return;
-      if (method === 'check') {
+      if (method === 'mixed') {
+        box.innerHTML = `<div class="form-row"><label>مبلغ نقدی</label><input id="purchase-mixed-cash" type="number" value="0"></div><div class="form-row"><label>مبلغ چک</label><input id="purchase-mixed-check" type="number" value="0"></div><div class="form-row"><label>شماره چک</label><input id="purchase-check-num"></div><div class="form-row"><label>سررسید چک</label><input type="date" id="purchase-check-due"></div>`;
+      } else if (method === 'check') {
         box.innerHTML = `
           <div class="form-row"><label>شماره چک</label><input id="purchase-check-num" /></div>
           <div class="form-row"><label>تاریخ سررسید</label><input type="date" id="purchase-check-due" /></div>
@@ -967,17 +973,30 @@
       else closeModal();
     }
 
+    async function addInvoicePaymentDocs(inv,prefix) {
+      const method=inv.payMethod;
+      if(method==='mixed'){
+        const cash=Number(document.getElementById(prefix+'-mixed-cash')?.value||0), chk=Number(document.getElementById(prefix+'-mixed-check')?.value||0);
+        if(cash<0||chk<0) throw new Error('مبالغ ترکیبی معتبر نیستند'); inv.paidAmount=cash+chk; await put('invoices',inv);
+        if(cash>0) await add('paymentDocuments',{...ensurePaymentForInvoice({...inv,payMethod:'cash',paidAmount:cash}),method:'cash',amount:cash});
+        if(chk>0) await add('paymentDocuments',{...ensurePaymentForInvoice({...inv,payMethod:'check',paidAmount:chk}),method:'check',amount:chk,checkNum:document.getElementById(prefix+'-check-num')?.value||'',checkDue:document.getElementById(prefix+'-check-due')?.value||''});
+      } else await add('paymentDocuments',ensurePaymentForInvoice(inv));
+    }
+
     async function savePurchaseInvoice() {
       const partyId = document.getElementById('purchase-party')?.value;
       const total = purchaseCart.reduce((s, c) => s + c.qty * c.price, 0);
-      const dateStr = document.getElementById('purchase-date')?.value;
+      const dateStr = parseJalaliDate(document.getElementById('purchase-date')?.value) || null;
       const payMethod = document.getElementById('purchase-pay-method')?.value || 'cash';
+      if(!dateStr) return toast('تاریخ شمسی معتبر وارد کنید (مثلاً ۱۴۰۵/۰۸/۲۱)');
       const inv = {
         type: 'purchase',
-        date: dateStr ? new Date(dateStr).getTime() : Date.now(),
+        date: dateStr || Date.now(),
+        invoiceNumber: document.getElementById('purchase-invoice-number')?.value.trim() || '',
         partyId: partyId ? Number(partyId) : null,
         items: purchaseCart.map(c => ({ productId: c.productId, name: c.name, price: c.price, costPrice: c.costPrice || c.price, qty: c.qty })),
         total,
+        paidAmount: Math.max(0,Number(document.getElementById('purchase-paid-amount')?.value||0)),
         payMethod,
         payInfo: document.getElementById('purchase-pay-info')?.value || '',
         checkNum: document.getElementById('purchase-check-num')?.value || '',
@@ -993,7 +1012,7 @@
       }
       inv.partyName = parties.find(p => p.id === inv.partyId)?.name || '';
       inv.id = await add('invoices', inv);
-      await add('paymentDocuments', ensurePaymentForInvoice(inv));
+      await addInvoicePaymentDocs(inv,'purchase');
       purchaseCart = [];
       await loadAll();
       closeModal();
@@ -1068,69 +1087,61 @@
     }
 
     // ========== Checks ==========
+    function openCheckModal(id) {
+      const old=id?checks.find(x=>x.id===id):null;
+      const partyOptions=parties.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+      const today=new Date().toISOString().slice(0,10);
+      showModal(`<h3>${old?'ویرایش چک':'ثبت چک'}</h3>
+        <div class="form-row"><label>مبلغ</label><input id="chk-amount" type="number" value="${old?.amount||''}"></div>
+        <div class="form-row"><label>طرف حساب</label><select id="chk-party"><option value="">—</option>${partyOptions}</select></div>
+        <div class="form-row"><label>شماره چک</label><input id="chk-number" value="${old?.number||''}"></div>
+        <div class="form-row"><label>تاریخ صدور</label><input id="chk-issue" type="date" value="${old?.issueDate||today}"></div>
+        <div class="form-row"><label>تاریخ سررسید</label><input id="chk-due" type="date" value="${old?.dueDate||''}"></div>
+        <div class="form-row"><label>توضیحات</label><input id="chk-note" value="${old?.note||''}"></div>
+        <div class="flex"><button class="btn btn-primary flex-1" onclick="saveCheck(${id||'null'})">ذخیره</button><button class="btn btn-outline" onclick="closeModal()">انصراف</button></div>`);
+      if(old)document.getElementById('chk-party').value=old.partyId||'';
+    }
+    async function saveCheck(id=null){
+      const amount=Number(document.getElementById('chk-amount').value);
+      if(!amount||amount<0)return toast('مبلغ معتبر وارد کنید');
+      const partyId=Number(document.getElementById('chk-party').value)||null;
+      const party=parties.find(p=>p.id===partyId), issue=document.getElementById('chk-issue').value;
+      const old=id?checks.find(x=>x.id===id):null;
+      const data={...(old?old:{}),amount,partyId,partyName:party?.name||'',number:document.getElementById('chk-number').value,
+        issueDate:issue,dueDate:document.getElementById('chk-due').value,note:document.getElementById('chk-note').value,
+        status:old?.status||'pending',statusDate:old?.statusDate||'',date:issue?new Date(issue+'T12:00:00').getTime():Date.now()};
+      if(id)await put('checks',data);else await add('checks',data);
+      await loadAll();closeModal();renderChecks();toast(id?'چک ویرایش شد':'چک ثبت شد');
+    }
+
     function renderChecks() {
       const el = document.getElementById('checksList');
-      if (!checks.length) {
-        el.innerHTML = '<div class="empty-state"><div class="icon">📝</div>چکی ثبت نشده</div>';
-        return;
-      }
-      const sorted = [...checks].sort((a, b) => b.date - a.date);
+      if (!checks.length) { el.innerHTML = '<div class="empty-state"><div class="icon">📝</div>چکی ثبت نشده</div>'; return; }
+      const sorted = [...checks].sort((a,b)=>b.date-a.date);
       el.innerHTML = sorted.map(c => `
         <div class="card" style="padding:12px 16px">
-          <div style="display:flex;justify-content:space-between;align-items:start">
-            <div>
-              <div style="font-weight:600">${formatMoney(c.amount)}</div>
-              <div class="text-muted text-sm">${c.partyName || '—'} · سررسید: ${c.dueDate || '—'}</div>
-              <div class="text-muted text-sm">${c.note || ''}</div>
-            </div>
-            <span class="badge ${c.status === 'paid' ? 'badge-green' : 'badge-yellow'}">${c.status === 'paid' ? 'پرداخت شده' : 'در انتظار'}</span>
+          <div style="display:flex;justify-content:space-between;gap:8px">
+            <div><b>${formatMoney(c.amount)}</b><div class="text-muted text-sm">${c.partyName||'—'} · شماره: ${c.number||'—'}</div>
+            <div class="text-muted text-sm">صدور: ${c.issueDate||'—'} · سررسید: ${c.dueDate||'—'}</div>
+            <div class="text-muted text-sm">${c.note||''}</div></div>
+            <span class="badge ${c.status==='paid'?'badge-green':c.status==='returned'?'badge-red':'badge-yellow'}">${c.status==='paid'?'پاس‌شده':c.status==='returned'?'برگشتی':'در انتظار'}</span>
           </div>
-        </div>
-      `).join('');
+          ${c.statusDate?`<div class="text-sm">تاریخ وضعیت: ${c.statusDate}</div>`:''}
+          <div class="flex mt-2">
+            <button class="btn btn-outline btn-sm" onclick="openCheckModal(${c.id})">ویرایش</button>
+            <button class="btn btn-outline btn-sm" onclick="setCheckStatus(${c.id},'paid')">پاس‌شده</button>
+            <button class="btn btn-outline btn-sm" onclick="setCheckStatus(${c.id},'returned')">برگشتی</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteCheck(${c.id})">حذف</button>
+          </div>
+        </div>`).join('');
     }
-
-    function openCheckModal() {
-      const partyOptions = parties.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-      const today = new Date().toISOString().slice(0, 10);
-      showModal(`
-        <h3>ثبت چک</h3>
-        <div class="form-row"><label>مبلغ</label><input id="chk-amount" type="number" /></div>
-        <div class="form-row"><label>طرف حساب</label>
-          <select id="chk-party"><option value="">—</option>${partyOptions}</select>
-        </div>
-        <div class="form-row"><label>شماره چک</label><input id="chk-number" /></div>
-        <div class="form-row"><label>تاریخ صدور</label><input id="chk-issue" type="date" value="${today}" /></div>
-        <div class="form-row"><label>تاریخ سررسید</label><input id="chk-due" type="date" /></div>
-        <div class="form-row"><label>توضیحات</label><input id="chk-note" /></div>
-        <div class="flex">
-          <button class="btn btn-primary flex-1" onclick="saveCheck()">ذخیره</button>
-          <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
-        </div>
-      `);
+    async function setCheckStatus(id,status){
+      const c=checks.find(x=>x.id===id); if(!c)return;
+      const d=prompt('تاریخ شمسی '+(status==='paid'?'پاس شدن':'برگشت')+' (مثلاً ۱۴۰۵/۰۸/۲۱)',jalaliParts(Date.now()));
+      if(d===null)return; if(!parseJalaliDate(d))return toast('تاریخ شمسی معتبر وارد کنید');
+      c.status=status;c.statusDate=d;await put('checks',c);await loadAll();renderChecks();toast('وضعیت چک ثبت شد');
     }
-
-    async function saveCheck() {
-      const amount = Number(document.getElementById('chk-amount').value);
-      if (!amount) return toast('مبلغ را وارد کنید');
-      const partyId = document.getElementById('chk-party').value;
-      const party = parties.find(p => p.id === Number(partyId));
-      const issueStr = document.getElementById('chk-issue')?.value;
-      await add('checks', {
-        amount,
-        partyId: partyId ? Number(partyId) : null,
-        partyName: party?.name || '',
-        number: document.getElementById('chk-number').value,
-        issueDate: issueStr || '',
-        dueDate: document.getElementById('chk-due').value,
-        note: document.getElementById('chk-note').value,
-        status: 'pending',
-        date: issueStr ? new Date(issueStr).getTime() : Date.now()
-      });
-      await loadAll();
-      closeModal();
-      renderChecks();
-      toast('چک ثبت شد');
-    }
+    async function deleteCheck(id){if(!confirm('چک حذف شود؟'))return;await remove('checks',id);await loadAll();renderChecks();toast('چک حذف شد');}
 
     // ========== Staff Notes ==========
     function renderStaff() {
@@ -1145,16 +1156,18 @@
           <div style="font-weight:600">${n.staffName} <span class="badge ${n.kind === 'salary' ? 'badge-green' : 'badge-yellow'}">${n.kind === 'salary' ? 'حقوق' : 'پورسانت'}</span></div>
           <div style="color:var(--primary);font-weight:600">${formatMoney(n.amount)}</div>
           <div class="text-muted text-sm">${formatDate(n.date)} · ${n.note || ''}</div>
+          <div class="flex mt-2"><button class="btn btn-outline btn-sm" onclick="openStaffModal(${n.id})">ویرایش</button><button class="btn btn-danger btn-sm" onclick="deleteStaffNote(${n.id})">حذف</button></div>
         </div>
       `).join('');
     }
 
-    function openStaffModal() {
+    function openStaffModal(id) {
+      const old=id?staffNotes.find(x=>x.id===id):null;
       const today = new Date().toISOString().slice(0, 10);
       showModal(`
-        <h3>پرداخت به فروشنده</h3>
-        <div class="form-row"><label>نام فروشنده</label><input id="staff-name" placeholder="مثال: مریم" /></div>
-        <div class="form-row"><label>مبلغ</label><input id="staff-amount" type="number" /></div>
+        <h3>${old?'ویرایش پرداخت':'پرداخت به فروشنده'}</h3>
+        <div class="form-row"><label>نام فروشنده</label><input id="staff-name" value="${old?.staffName||''}" placeholder="مثال: مریم" /></div>
+        <div class="form-row"><label>مبلغ</label><input id="staff-amount" type="number" value="${old?.amount||''}" /></div>
         <div class="form-row">
           <label>نوع پرداخت</label>
           <select id="staff-kind">
@@ -1162,32 +1175,33 @@
             <option value="commission">پورسانت</option>
           </select>
         </div>
-        <div class="form-row"><label>تاریخ</label><input type="date" id="staff-date" value="${today}" /></div>
-        <div class="form-row"><label>توضیحات</label><input id="staff-note" placeholder="بابت ..." /></div>
+        <div class="form-row"><label>تاریخ</label><input type="date" id="staff-date" value="${old?new Date(old.date).toISOString().slice(0,10):today}" /></div>
+        <div class="form-row"><label>توضیحات</label><input id="staff-note" value="${old?.note||""}" placeholder="بابت ..." /></div>
         <div class="flex">
-          <button class="btn btn-primary flex-1" onclick="saveStaffNote()">ذخیره</button>
+          <button class="btn btn-primary flex-1" onclick="saveStaffNote(${id||"null"})">ذخیره</button>
           <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
         </div>
       `);
+      if(old) document.getElementById('staff-kind').value=old.kind||'salary';
     }
 
-    async function saveStaffNote() {
+    async function saveStaffNote(id=null) {
       const name = document.getElementById('staff-name').value.trim();
       const amount = Number(document.getElementById('staff-amount').value);
       if (!name || !amount) return toast('نام و مبلغ را وارد کنید');
       const dateStr = document.getElementById('staff-date')?.value;
-      await add('staffNotes', {
-        staffName: name,
+      const data = {
+        ...(id?{id}:{}), staffName: name,
         amount,
         kind: document.getElementById('staff-kind')?.value || 'salary',
         note: document.getElementById('staff-note').value.trim(),
         date: dateStr ? new Date(dateStr).getTime() : Date.now()
-      });
-      await loadAll();
-      closeModal();
-      renderStaff();
-      toast('یادداشت ذخیره شد');
+      };
+      if(id) await put('staffNotes',data); else await add('staffNotes',data);
+      await loadAll(); closeModal(); renderStaff(); toast('پرداخت ذخیره شد');
     }
+
+    async function deleteStaffNote(id){if(!confirm('این پرداخت حذف شود؟'))return;await remove('staffNotes',id);await loadAll();renderStaff();toast('پرداخت حذف شد');}
 
     // ========== Reports ==========
     function invoicePartyName(inv) { return inv.partyName || parties.find(p => p.id === inv.partyId)?.name || ''; }
@@ -1211,11 +1225,11 @@
       const sort=document.getElementById('invoiceSort')?.value||'new';
       const filter=(type)=>{
         let arr=invoices.filter(i=>i.type===type || (type==='sale'&&i.type==='saleReturn') || (type==='purchase'&&i.type==='purchaseReturn'));
-        if(q) arr=arr.filter(i=>String(i.id).includes(q)||invoicePartyName(i).toLowerCase().includes(q)||invoiceKindLabel(i.type).toLowerCase().includes(q));
+        if(q) arr=arr.filter(i=>String(i.id).includes(q)||String(i.invoiceNumber||'').toLowerCase().includes(q)||invoicePartyName(i).toLowerCase().includes(q)||invoiceKindLabel(i.type).toLowerCase().includes(q));
         arr.sort((a,b)=>sort==='old'?a.date-b.date:sort==='high'?(b.total||0)-(a.total||0):sort==='low'?(a.total||0)-(b.total||0):b.date-a.date);
         return arr;
       };
-      const render=(arr)=>arr.length?arr.map(i=>`<div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})"><div><div><b>${invoiceKindLabel(i.type)} #${i.id}</b> · ${jalaliParts(i.date)}</div><div class="text-muted text-sm">${invoicePartyName(i)||'بدون طرف‌حساب'} · ${(i.items||[]).length} قلم</div></div><div style="font-weight:600">${formatMoney(i.total)}</div></div>`).join(''):'<div class="text-muted">فاکتوری یافت نشد</div>';
+      const render=(arr)=>arr.length?arr.map(i=>`<div class="list-item" style="cursor:pointer" onclick="viewInvoice(${i.id})"><div><div><b>${invoiceKindLabel(i.type)} #${i.invoiceNumber||i.id}</b> · ${jalaliParts(i.date)}</div><div class="text-muted text-sm">${invoicePartyName(i)||'بدون طرف‌حساب'} · ${(i.items||[]).length} قلم</div></div><div style="font-weight:600">${formatMoney(i.total)}</div></div>`).join(''):'<div class="text-muted">فاکتوری یافت نشد</div>';
       document.getElementById('reportSales').innerHTML=render(filter('sale'));
       document.getElementById('reportPurchases').innerHTML=render(filter('purchase'));
     }
@@ -1224,7 +1238,7 @@
       const el=document.getElementById('paymentsList'), q=(document.getElementById('paymentSearch')?.value||'').trim().toLowerCase();
       let docs=[...paymentDocuments].sort((a,b)=>(b.date||0)-(a.date||0));
       if(q) docs=docs.filter(d=>String(d.invoiceId).includes(q)||(d.partyName||'').toLowerCase().includes(q)||paymentMethodLabel(d.method).toLowerCase().includes(q)||(d.checkNum||'').toLowerCase().includes(q));
-      el.innerHTML=docs.length?docs.map(d=>`<div class="card"><div style="display:flex;justify-content:space-between;gap:8px"><b>${d.invoiceType==='sale'?'دریافت':'پرداخت'} · فاکتور #${d.invoiceId}</b><b>${formatMoney(d.amount)}</b></div><div class="text-muted text-sm">${d.partyName||'بدون طرف‌حساب'} · ${paymentMethodLabel(d.method)} · ${d.jalaliDate||jalaliParts(d.date)}</div>${d.checkNum?`<div class="text-sm">شماره چک: ${d.checkNum} ${d.checkDue?'· سررسید: '+d.checkDue:''}</div>`:''}${d.info?`<div class="text-muted text-sm">${d.info}</div>`:''}<button class="btn btn-outline btn-sm mt-2" onclick="editPayment(${d.id})">ویرایش سند</button></div>`).join(''):'<div class="empty-state">سند پرداختی ثبت نشده است</div>';
+      el.innerHTML=docs.length?docs.map(d=>`<div class="card"><div style="display:flex;justify-content:space-between;gap:8px"><b>${d.invoiceType==='sale'?'دریافت':'پرداخت'} · فاکتور #${d.invoiceId}</b><b>${formatMoney(d.amount)}</b></div><div class="text-muted text-sm">${d.partyName||'بدون طرف‌حساب'} · ${paymentMethodLabel(d.method)} · ${d.jalaliDate||jalaliParts(d.date)}</div>${d.checkNum?`<div class="text-sm">شماره چک: ${d.checkNum} ${d.checkDue?'· سررسید: '+d.checkDue:''}</div>`:''}${d.info?`<div class="text-muted text-sm">${d.info}</div>`:''}${d.balance!==undefined?`<div class="text-sm">${d.balance>0?'بدهکار فاکتور':d.balance<0?'بستانکار':'تسویه'}: ${formatMoney(Math.abs(d.balance))}</div>`:''}<button class="btn btn-outline btn-sm mt-2" onclick="editPayment(${d.id})">ویرایش سند</button></div>`).join(''):'<div class="empty-state">سند پرداختی ثبت نشده است</div>';
     }
     function editPayment(id) {
       const d=paymentDocuments.find(x=>x.id===id); if(!d)return;
@@ -1236,7 +1250,7 @@
       if(!amount||amount<0)return toast('مبلغ معتبر وارد کنید'); if(!date)return toast('تاریخ شمسی را به شکل ۱۴۰۵/۰۸/۲۱ وارد کنید');
       d.amount=amount; d.method=document.getElementById('pd-method').value; d.date=date; d.jalaliDate=jalali; const paymentInfo=document.getElementById('pd-info').value; d.checkNum=d.method==='check'?paymentInfo:''; d.info=d.method!=='check'?paymentInfo:''; d.note=document.getElementById('pd-note').value;
       await put('paymentDocuments',d);
-      const inv=invoices.find(x=>x.id===d.invoiceId); if(inv){inv.payMethod=d.method;inv.checkNum=d.method==='check'?d.info:'';inv.payInfo=d.method!=='check'?d.info:'';await put('invoices',inv);}
+      const inv=invoices.find(x=>x.id===d.invoiceId); if(inv){inv.payMethod=d.method;inv.paidAmount=amount;inv.balance=(inv.total||0)-amount;inv.checkNum=d.method==='check'?d.info:'';inv.payInfo=d.method!=='check'?d.info:'';await put('invoices',inv);}
       await loadAll();closeModal();renderPayments();toast('سند پرداختی ویرایش شد');
     }
 
