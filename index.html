@@ -393,9 +393,16 @@
     <div id="paymentsList"></div>
   </div>
 
-  <!-- Staff notes -->
+  <!-- Staff ledger: independent from store accounting -->
   <div class="page" id="page-staff">
-    <button class="btn btn-primary btn-block mb-2" onclick="openStaffModal()">+ یادداشت پرداخت به فروشنده</button>
+    <div class="card mb-2">
+      <div class="section-title" style="margin-top:0">حساب حقوق و دستمزد فروشنده‌ها</div>
+      <p class="text-muted">این بخش مستقل از صندوق، فاکتورها و حسابداری مغازه است. حقوق و دستمزد ثبت‌شده به طلب فروشنده اضافه می‌شود و پرداخت‌ها از آن کم می‌شود.</p>
+      <div class="flex" style="flex-wrap:wrap">
+        <button class="btn btn-primary flex-1" onclick="openStaffModal(null,'earning')">+ ثبت حقوق / دستمزد</button>
+        <button class="btn btn-outline flex-1" onclick="openStaffModal(null,'payment')">+ ثبت پرداخت</button>
+      </div>
+    </div>
     <div id="staffList"></div>
   </div>
 
@@ -1198,65 +1205,103 @@
     }
     async function deleteCheck(id){if(!confirm('چک حذف شود؟'))return;await remove('checks',id);await loadAll();renderChecks();toast('چک حذف شد');}
 
-    // ========== Staff Notes ==========
+    // ========== Independent Staff Salary Ledger ==========
+    // Legacy staffNotes without entryType are treated as historical payments.
+    function staffEntryType(entry) { return entry.entryType || 'payment'; }
+    function staffLedgerData() {
+      const grouped = new Map();
+      for (const entry of staffNotes) {
+        const name = String(entry.staffName || '').trim() || 'بدون نام';
+        const key = name.toLocaleLowerCase('fa');
+        if (!grouped.has(key)) grouped.set(key, {name, entries:[], earned:0, paid:0});
+        const account = grouped.get(key);
+        account.entries.push(entry);
+        if (staffEntryType(entry) === 'earning') account.earned += Number(entry.amount || 0);
+        else account.paid += Number(entry.amount || 0);
+      }
+      return [...grouped.values()].map(a => ({...a, balance:a.earned-a.paid, entries:a.entries.sort((x,y)=>y.date-x.date)}))
+        .sort((a,b)=>a.name.localeCompare(b.name,'fa'));
+    }
     function renderStaff() {
       const el = document.getElementById('staffList');
-      if (!staffNotes.length) {
-        el.innerHTML = '<div class="empty-state"><div class="icon">✍️</div>یادداشتی ثبت نشده</div>';
+      const accounts = staffLedgerData();
+      if (!accounts.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">👥</div>هنوز حسابی برای فروشنده‌ها ثبت نشده است</div>';
         return;
       }
-      const sorted = [...staffNotes].sort((a, b) => b.date - a.date);
-      el.innerHTML = sorted.map(n => `
-        <div class="card" style="padding:12px 16px">
-          <div style="font-weight:600">${n.staffName} <span class="badge ${n.kind === 'salary' ? 'badge-green' : 'badge-yellow'}">${n.kind === 'salary' ? 'حقوق' : 'پورسانت'}</span></div>
-          <div style="color:var(--primary);font-weight:600">${formatMoney(n.amount)}</div>
-          <div class="text-muted text-sm">${formatDate(n.date)} · ${n.note || ''}</div>
-          <div class="flex mt-2"><button class="btn btn-outline btn-sm" onclick="openStaffModal(${n.id})">ویرایش</button><button class="btn btn-danger btn-sm" onclick="deleteStaffNote(${n.id})">حذف</button></div>
+      el.innerHTML = accounts.map((a, idx) => `
+        <div class="card" style="padding:14px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+            <div style="font-weight:700;font-size:1.05rem">${a.name}</div>
+            <span class="badge ${a.balance>0?'badge-yellow':a.balance<0?'badge-red':'badge-green'}">${a.balance>0?'مغازه بدهکار است':a.balance<0?'فروشنده بدهکار است':'تسویه'}</span>
+          </div>
+          <div class="stats" style="margin:12px 0">
+            <div class="stat-card"><div class="num" style="font-size:1rem">${formatMoney(a.earned)}</div><div class="label">حقوق و دستمزد ثبت‌شده</div></div>
+            <div class="stat-card"><div class="num" style="font-size:1rem">${formatMoney(a.paid)}</div><div class="label">مجموع پرداختی</div></div>
+            <div class="stat-card"><div class="num" style="font-size:1rem;color:${a.balance<0?'#dc2626':a.balance>0?'#b45309':'#15803d'}">${formatMoney(Math.abs(a.balance))}</div><div class="label">${a.balance>0?'مانده طلب فروشنده':a.balance<0?'بدهی فروشنده به مغازه':'مانده حساب'}</div></div>
+          </div>
+          <details>
+            <summary style="cursor:pointer;font-weight:600;padding:6px 0">ریز گردش حساب (${a.entries.length} مورد)</summary>
+            ${a.entries.map(n => `
+              <div style="border-top:1px solid var(--border);padding:10px 0">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+                  <b>${staffEntryType(n)==='earning'?'افزایش طلب':'پرداخت به فروشنده'}</b>
+                  <b style="color:${staffEntryType(n)==='earning'?'#b45309':'#15803d'}">${staffEntryType(n)==='earning'?'+':'−'} ${formatMoney(n.amount)}</b>
+                </div>
+                <div class="text-muted text-sm">${formatDate(n.date)} · ${n.note || (n.kind==='commission'?'پورسانت':n.kind==='daily'?'دستمزد روزانه':'حقوق')}</div>
+                <div class="flex mt-2">
+                  <button class="btn btn-outline btn-sm" onclick="openStaffModal(${n.id})">ویرایش</button>
+                  <button class="btn btn-danger btn-sm" onclick="deleteStaffNote(${n.id})">حذف</button>
+                </div>
+              </div>
+            `).join('')}
+          </details>
         </div>
       `).join('');
     }
 
-    function openStaffModal(id) {
+    function openStaffModal(id, defaultType='earning') {
       const old=id?staffNotes.find(x=>x.id===id):null;
       const today = new Date().toISOString().slice(0, 10);
+      const entryType = old ? staffEntryType(old) : defaultType;
       showModal(`
-        <h3>${old?'ویرایش پرداخت':'پرداخت به فروشنده'}</h3>
+        <h3>${old?'ویرایش گردش حساب فروشنده':entryType==='earning'?'ثبت حقوق / دستمزد':'ثبت پرداخت به فروشنده'}</h3>
         <div class="form-row"><label>نام فروشنده</label><input id="staff-name" value="${old?.staffName||''}" placeholder="مثال: مریم" /></div>
-        <div class="form-row"><label>مبلغ</label><input id="staff-amount" type="number" value="${old?.amount||''}" /></div>
-        <div class="form-row">
-          <label>نوع پرداخت</label>
-          <select id="staff-kind">
-            <option value="salary">حقوق</option>
-            <option value="commission">پورسانت</option>
+        <div class="form-row"><label>نوع ثبت</label>
+          <select id="staff-entry-type">
+            <option value="earning">حقوق / دستمزد / پورسانت (افزایش طلب فروشنده)</option>
+            <option value="payment">پرداخت به فروشنده (کاهش طلب)</option>
           </select>
         </div>
+        <div class="form-row"><label>مبلغ (تومان)</label><input id="staff-amount" type="number" min="1" step="1" value="${old?.amount??''}" placeholder="مبلغ را وارد کنید" /></div>
         <div class="form-row"><label>تاریخ</label><input type="date" id="staff-date" value="${old?new Date(old.date).toISOString().slice(0,10):today}" /></div>
-        <div class="form-row"><label>توضیحات</label><input id="staff-note" value="${old?.note||""}" placeholder="بابت ..." /></div>
+        <div class="form-row"><label>توضیحات</label><input id="staff-note" value="${old?.note||''}" placeholder="مثلاً حقوق روزانه امروز، حقوق معوقه، پرداخت علی‌الحساب..." /></div>
         <div class="flex">
-          <button class="btn btn-primary flex-1" onclick="saveStaffNote(${id||"null"})">ذخیره</button>
+          <button class="btn btn-primary flex-1" onclick="saveStaffNote(${id||'null'})">ذخیره</button>
           <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
         </div>
       `);
-      if(old) document.getElementById('staff-kind').value=old.kind||'salary';
+      document.getElementById('staff-entry-type').value=entryType;
     }
 
     async function saveStaffNote(id=null) {
       const name = document.getElementById('staff-name').value.trim();
       const amount = Number(document.getElementById('staff-amount').value);
-      if (!name || !amount) return toast('نام و مبلغ را وارد کنید');
+      if (!name || !Number.isFinite(amount) || amount<=0) return toast('نام و مبلغ معتبر و بزرگ‌تر از صفر وارد کنید');
       const dateStr = document.getElementById('staff-date')?.value;
+      const old=id?staffNotes.find(x=>x.id===id):null;
       const data = {
-        ...(id?{id}:{}), staffName: name,
-        amount,
-        kind: document.getElementById('staff-kind')?.value || 'salary',
+        ...(id?{id}:{}), staffName: name, amount,
+        entryType: document.getElementById('staff-entry-type')?.value || 'earning',
+        kind: old?.kind || 'salary',
         note: document.getElementById('staff-note').value.trim(),
-        date: dateStr ? new Date(dateStr).getTime() : Date.now()
+        date: dateStr ? new Date(dateStr+'T12:00:00').getTime() : Date.now()
       };
       if(id) await put('staffNotes',data); else await add('staffNotes',data);
-      await loadAll(); closeModal(); renderStaff(); toast('پرداخت ذخیره شد');
+      await loadAll(); closeModal(); renderStaff(); toast('گردش حساب فروشنده ذخیره شد');
     }
 
-    async function deleteStaffNote(id){if(!confirm('این پرداخت حذف شود؟'))return;await remove('staffNotes',id);await loadAll();renderStaff();toast('پرداخت حذف شد');}
+    async function deleteStaffNote(id){if(!confirm('این مورد از گردش حساب فروشنده حذف شود؟'))return;await remove('staffNotes',id);await loadAll();renderStaff();toast('مورد حذف شد');}
 
     // ========== Reports ==========
     function invoicePartyName(inv) { return inv.partyName || parties.find(p => p.id === inv.partyId)?.name || ''; }
