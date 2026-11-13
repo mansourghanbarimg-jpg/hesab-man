@@ -413,13 +413,19 @@
         <div class="stat-card"><div class="num" id="staff-exp-month">۰</div><div class="label">جمع این ماه</div></div>
         <div class="stat-card"><div class="num" id="staff-exp-all">۰</div><div class="label">جمع کل</div></div>
       </div>
-      <div class="form-row mt-2"><label>نمایش هزینه‌ها</label>
+      <div class="form-row mt-2"><label>فروشنده موردنظر</label>
+        <select id="staff-exp-person" onchange="renderStaffExpenses()">
+          <option value="all">همه فروشنده‌ها</option>
+        </select>
+      </div>
+      <div class="form-row"><label>نمایش هزینه‌ها</label>
         <select id="staff-exp-filter" onchange="renderStaffExpenses()">
           <option value="all">همه موارد</option>
           <option value="week">این هفته</option>
           <option value="month">این ماه</option>
         </select>
       </div>
+      <div id="staff-exp-person-summary" class="text-muted text-sm mt-2"></div>
       <div id="staffExpensesList"></div>
     </div>
   </div>
@@ -1344,15 +1350,37 @@
       const weekStart = staffExpensePeriodStart('week');
       const monthStart = staffExpensePeriodStart('month');
       const sum = rows => rows.reduce((total, item) => total + Number(item.amount || 0), 0);
-      document.getElementById('staff-exp-week').textContent = formatMoney(sum(staffPersonalExpenses.filter(x => x.date >= weekStart && x.date <= now)));
-      document.getElementById('staff-exp-month').textContent = formatMoney(sum(staffPersonalExpenses.filter(x => x.date >= monthStart && x.date <= now)));
-      document.getElementById('staff-exp-all').textContent = formatMoney(sum(staffPersonalExpenses));
+      const allRows = staffPersonalExpenses;
+      document.getElementById('staff-exp-week').textContent = formatMoney(sum(allRows.filter(x => x.date >= weekStart && x.date <= now)));
+      document.getElementById('staff-exp-month').textContent = formatMoney(sum(allRows.filter(x => x.date >= monthStart && x.date <= now)));
+      document.getElementById('staff-exp-all').textContent = formatMoney(sum(allRows));
+
+      const personSelect = document.getElementById('staff-exp-person');
+      if (personSelect) {
+        const selectedPerson = personSelect.value || 'all';
+        const names = [...new Set(allRows.map(x => x.staffName).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'fa'));
+        personSelect.innerHTML = '<option value="all">همه فروشنده‌ها</option>' +
+          names.map(name => `<option value="${String(name).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}">${name}</option>`).join('');
+        personSelect.value = names.includes(selectedPerson) ? selectedPerson : 'all';
+      }
+
+      const selectedPerson = personSelect?.value || 'all';
+      const personRows = selectedPerson === 'all' ? allRows : allRows.filter(x => x.staffName === selectedPerson);
+      const personSummary = document.getElementById('staff-exp-person-summary');
+      if (personSummary) {
+        if (selectedPerson === 'all') {
+          personSummary.textContent = 'جمع‌های بالای صفحه مربوط به همه فروشنده‌هاست. برای دیدن جمع هر شخص، نام او را انتخاب کن.';
+        } else {
+          personSummary.innerHTML = `<b>${selectedPerson}</b> — این هفته: ${formatMoney(sum(personRows.filter(x => x.date >= weekStart && x.date <= now)))} | این ماه: ${formatMoney(sum(personRows.filter(x => x.date >= monthStart && x.date <= now)))} | جمع کل: ${formatMoney(sum(personRows))}`;
+        }
+      }
+
       const filter = document.getElementById('staff-exp-filter')?.value || 'all';
       const start = filter === 'all' ? 0 : staffExpensePeriodStart(filter);
-      const rows = staffPersonalExpenses.filter(x => x.date >= start).sort((a,b) => b.date-a.date);
+      const rows = personRows.filter(x => x.date >= start).sort((a,b) => b.date-a.date);
       const el = document.getElementById('staffExpensesList');
       if (!rows.length) {
-        el.innerHTML = '<div class="empty-state">هزینه شخصی ثبت‌شده‌ای در این بازه وجود ندارد</div>';
+        el.innerHTML = '<div class="empty-state">هزینه‌ای برای این فروشنده و بازه انتخاب‌شده وجود ندارد</div>';
         return;
       }
       el.innerHTML = rows.map(x => `
