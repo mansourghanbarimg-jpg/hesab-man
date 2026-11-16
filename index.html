@@ -283,13 +283,58 @@
     .mt-2 { margin-top: 8px; }
     .mb-2 { margin-bottom: 8px; }
     .hidden { display: none !important; }
+
+    .header-line { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .header-lock { background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.45); white-space:nowrap; }
+    .auth-gate {
+      position:fixed; inset:0; z-index:9999; display:flex; align-items:center;
+      justify-content:center; padding:24px; background:linear-gradient(145deg,#e6fffb,#f0fdfa 55%,#ccfbf1);
+    }
+    .auth-card {
+      width:100%; max-width:390px; background:#fff; border:1px solid #ccfbf1;
+      border-radius:24px; padding:28px 22px; box-shadow:0 18px 55px rgba(15,118,110,.16);
+      text-align:right;
+    }
+    .auth-mark { width:58px;height:58px;border-radius:18px;display:grid;place-items:center;
+      background:#ccfbf1;font-size:28px;margin:0 auto 14px; }
+    .auth-card h1 { text-align:center;color:#0f766e;font-size:1.5rem; }
+    .auth-sub { text-align:center;color:#64748b;margin:3px 0 24px;font-size:.88rem; }
+    .auth-card h2 { font-size:1.05rem;margin-bottom:8px;color:#134e4a; }
+    .auth-hint,.auth-foot { color:#64748b;font-size:.82rem;line-height:1.8;margin-bottom:16px; }
+    .auth-foot { margin:16px 0 0;font-size:.75rem; }
+    .auth-error { color:#dc2626;font-size:.83rem;min-height:20px;margin:0 0 8px; }
+    #appShell[hidden], #authGate[hidden] { display:none !important; }
   </style>
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=4" />
 </head>
 <body>
+  <section id="authGate" class="auth-gate" aria-live="polite">
+    <div class="auth-card">
+      <div class="auth-mark">🔐</div>
+      <h1>حساب من</h1>
+      <p class="auth-sub">گالری پرشین</p>
+      <h2 id="authTitle">برای ورود رمز عبور را وارد کنید</h2>
+      <p id="authHint" class="auth-hint">رمز عبور اطلاعات برنامه را محافظت می‌کند.</p>
+      <form id="authForm">
+        <label for="authPassword">رمز عبور</label>
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="رمز عبور" required minlength="8">
+        <div id="authConfirmWrap" hidden>
+          <label for="authConfirm">تکرار رمز عبور</label>
+          <input id="authConfirm" type="password" autocomplete="new-password" placeholder="رمز را دوباره وارد کنید" minlength="8">
+        </div>
+        <p id="authError" class="auth-error" role="alert"></p>
+        <button class="btn btn-primary btn-block" id="authSubmit" type="submit">ورود به برنامه</button>
+      </form>
+      <p class="auth-foot">رمز را در جای امنی نگهداری کنید؛ فراموشی آن از طریق این برنامه قابل بازیابی نیست.</p>
+    </div>
+  </section>
+  <div id="appShell" hidden>
+
   <div class="header">
-    <h1>حسابداری گالری پرشین</h1>
-    <div class="sub">فروشگاه پوشاک زنانه</div>
+    <div class="header-line">
+      <div><h1>حسابداری گالری پرشین</h1><div class="sub">فروشگاه پوشاک زنانه</div></div>
+      <div class="flex" style="gap:6px"><button type="button" class="btn btn-outline btn-sm header-lock" onclick="changeHesabManPassword()">تغییر رمز</button><button type="button" class="btn btn-outline btn-sm header-lock" onclick="lockHesabMan()">قفل</button></div>
+    </div>
   </div>
 
   <div class="nav" id="mainNav">
@@ -500,7 +545,109 @@
 
   <div class="toast" id="toast"></div>
 
+
+  </div>
   <script>
+    // ========== Local app access password ==========
+    // Password verifier only; business records remain in the existing IndexedDB format.
+    const AUTH_KEY = 'hesabManAuthV1';
+    let authMode = 'unlock';
+    let authBusy = false;
+
+    function authBase64(bytes) {
+      return btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    }
+    function authFromBase64(value) {
+      return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+    }
+    async function authDerive(password, salt) {
+      if (!window.crypto || !crypto.subtle) throw new Error('مرورگر از رمزنگاری امن پشتیبانی نمی‌کند. سایت را با HTTPS باز کنید.');
+      const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+      return await crypto.subtle.deriveBits({name:'PBKDF2', salt, iterations:310000, hash:'SHA-256'}, material, 256);
+    }
+    function authRecord() {
+      try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (_) { return null; }
+    }
+    function authShow(mode, message='') {
+      authMode = mode;
+      document.getElementById('authGate').hidden = false;
+      document.getElementById('appShell').hidden = true;
+      document.getElementById('authTitle').textContent = mode === 'setup' ? 'برای برنامه رمز اولیه بسازید' : 'برای ورود رمز عبور را وارد کنید';
+      document.getElementById('authHint').textContent = mode === 'setup' ? 'رمز باید حداقل ۸ کاراکتر باشد.' : 'رمز عبور تعیین‌شده را وارد کنید.';
+      document.getElementById('authConfirmWrap').hidden = mode !== 'setup';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('authConfirm').value = '';
+      document.getElementById('authPassword').autocomplete = mode === 'setup' ? 'new-password' : 'current-password';
+      document.getElementById('authSubmit').textContent = mode === 'setup' ? 'ثبت رمز و ورود' : 'ورود به برنامه';
+      document.getElementById('authError').textContent = message;
+      setTimeout(() => document.getElementById('authPassword').focus(), 80);
+    }
+    async function authUnlock(password) {
+      const record = authRecord();
+      if (!record) throw new Error('تنظیم رمز اولیه پیدا نشد.');
+      const bits = await authDerive(password, authFromBase64(record.salt));
+      const digest = authBase64(bits);
+      if (digest !== record.verifier) throw new Error('رمز عبور اشتباه است.');
+      document.getElementById('authGate').hidden = true;
+      document.getElementById('appShell').hidden = false;
+      await startHesabManApp();
+    }
+    async function authSetup(password, confirmation) {
+      if (password.length < 8) throw new Error('رمز باید حداقل ۸ کاراکتر باشد.');
+      if (password !== confirmation) throw new Error('تکرار رمز با رمز اصلی یکسان نیست.');
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const verifier = authBase64(await authDerive(password, salt));
+      localStorage.setItem(AUTH_KEY, JSON.stringify({version:1, salt:authBase64(salt), verifier}));
+      await authUnlock(password);
+    }
+    async function changeHesabManPassword() {
+      const oldPassword = prompt('رمز فعلی را وارد کنید:');
+      if (oldPassword === null) return;
+      try {
+        const record = authRecord();
+        const bits = await authDerive(oldPassword, authFromBase64(record.salt));
+        if (authBase64(bits) !== record.verifier) return alert('رمز فعلی اشتباه است.');
+        const next = prompt('رمز جدید را وارد کنید (حداقل ۸ کاراکتر):');
+        if (next === null) return;
+        if (next.length < 8) return alert('رمز جدید باید حداقل ۸ کاراکتر باشد.');
+        const confirmNext = prompt('رمز جدید را دوباره وارد کنید:');
+        if (next !== confirmNext) return alert('دو رمز یکسان نیستند.');
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const verifier = authBase64(await authDerive(next, salt));
+        localStorage.setItem(AUTH_KEY, JSON.stringify({version:1, salt:authBase64(salt), verifier}));
+        alert('رمز ورود با موفقیت تغییر کرد.');
+      } catch (e) { alert(e.message || 'تغییر رمز انجام نشد.'); }
+    }
+    function lockHesabMan() {
+      document.getElementById('appShell').hidden = true;
+      authShow('unlock');
+    }
+    document.getElementById('authForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (authBusy) return;
+      authBusy = true;
+      const button = document.getElementById('authSubmit');
+      button.disabled = true;
+      document.getElementById('authError').textContent = '';
+      try {
+        const password = document.getElementById('authPassword').value;
+        if (authMode === 'setup') {
+          await authSetup(password, document.getElementById('authConfirm').value);
+        } else {
+          await authUnlock(password);
+        }
+      } catch (e) {
+        document.getElementById('authError').textContent = e.message || 'ورود انجام نشد.';
+      } finally {
+        authBusy = false;
+        button.disabled = false;
+      }
+    });
+    // Existing app startup is held until the password is successfully entered.
+    function beginHesabManAuth() {
+      authShow(authRecord() ? 'unlock' : 'setup');
+    }
+
     // ========== Database (IndexedDB) ==========
     const DB_NAME = 'HesabManDB';
     const DB_VERSION = 3;
@@ -1817,16 +1964,24 @@
     }
 
     // ========== Init ==========
-    (async () => {
-      await openDB();
-      await loadAll();
-      // Register service worker for offline
-      if ('serviceWorker' in navigator) {
-        try {
-          await navigator.serviceWorker.register('sw.js');
-        } catch (e) {}
+    let hesabManStarted = false;
+    async function startHesabManApp() {
+      if (hesabManStarted) return;
+      hesabManStarted = true;
+      try {
+        await openDB();
+        await loadAll();
+        if ('serviceWorker' in navigator) {
+          try { await navigator.serviceWorker.register('sw.js'); } catch (e) {}
+        }
+      } catch (error) {
+        hesabManStarted = false;
+        document.getElementById('appShell').hidden = true;
+        authShow('unlock', 'بارگذاری اطلاعات با مشکل مواجه شد؛ صفحه را دوباره باز کنید.');
+        console.error(error);
       }
-    })();
+    }
+    beginHesabManAuth();
 
     // Close modal on overlay click
     document.getElementById('modal').addEventListener('click', (e) => {
