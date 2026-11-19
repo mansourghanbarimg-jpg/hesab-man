@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#0f766e" />
   <title>حسابداری گالری پرشین</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=4" />
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=5" />
   <style>
     :root {
       --primary: #0f766e;
@@ -283,13 +283,64 @@
     .mt-2 { margin-top: 8px; }
     .mb-2 { margin-bottom: 8px; }
     .hidden { display: none !important; }
+
+    .header-line { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .header-lock { background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.45); white-space:nowrap; }
+    .auth-gate {
+      position:fixed; inset:0; z-index:9999; display:flex; align-items:center;
+      justify-content:center; padding:24px; background:linear-gradient(145deg,#e6fffb,#f0fdfa 55%,#ccfbf1);
+    }
+    .auth-card {
+      width:100%; max-width:390px; background:#fff; border:1px solid #ccfbf1;
+      border-radius:24px; padding:28px 22px; box-shadow:0 18px 55px rgba(15,118,110,.16);
+      text-align:right;
+    }
+    .auth-mark { width:58px;height:58px;border-radius:18px;display:grid;place-items:center;
+      background:#ccfbf1;font-size:28px;margin:0 auto 14px; }
+    .auth-card h1 { text-align:center;color:#0f766e;font-size:1.5rem; }
+    .auth-sub { text-align:center;color:#64748b;margin:3px 0 24px;font-size:.88rem; }
+    .auth-card h2 { font-size:1.05rem;margin-bottom:8px;color:#134e4a; }
+    .auth-hint,.auth-foot { color:#64748b;font-size:.82rem;line-height:1.8;margin-bottom:16px; }
+    .auth-foot { margin:16px 0 0;font-size:.75rem; }
+    .auth-error { color:#dc2626;font-size:.83rem;min-height:20px;margin:0 0 8px; }
+    #appShell[hidden], #authGate[hidden] { display:none !important; }
+
+    .auth-mark { width:104px !important; height:104px !important; border-radius:22px !important; overflow:hidden; margin:0 auto 14px !important; background:#000 !important; }
+    .auth-mark img { width:100%; height:100%; object-fit:cover; display:block; }
+    .header-brand { display:flex; align-items:center; gap:10px; min-width:0; }
+    .header-brand img { width:46px; height:46px; border-radius:10px; object-fit:cover; background:#000; border:1px solid rgba(255,255,255,.35); flex-shrink:0; }
+
   </style>
-<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=4" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png?v=5" />
 </head>
 <body>
+  <section id="authGate" class="auth-gate" aria-live="polite">
+    <div class="auth-card">
+      <div class="auth-mark"><img src="icon-192.png?v=5" alt="لوگوی گالری پرشین"></div>
+      <h1>حساب من</h1>
+      <p class="auth-sub">گالری پرشین</p>
+      <h2 id="authTitle">برای ورود رمز عبور را وارد کنید</h2>
+      <p id="authHint" class="auth-hint">رمز عبور اطلاعات برنامه را محافظت می‌کند.</p>
+      <form id="authForm">
+        <label for="authPassword">رمز عبور</label>
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="رمز عبور" required minlength="8">
+        <div id="authConfirmWrap" hidden>
+          <label for="authConfirm">تکرار رمز عبور</label>
+          <input id="authConfirm" type="password" autocomplete="new-password" placeholder="رمز را دوباره وارد کنید" minlength="8">
+        </div>
+        <p id="authError" class="auth-error" role="alert"></p>
+        <button class="btn btn-primary btn-block" id="authSubmit" type="submit">ورود به برنامه</button>
+      </form>
+      <p class="auth-foot">رمز را در جای امنی نگهداری کنید؛ فراموشی آن از طریق این برنامه قابل بازیابی نیست.</p>
+    </div>
+  </section>
+  <div id="appShell" hidden>
+
   <div class="header">
-    <h1>حسابداری گالری پرشین</h1>
-    <div class="sub">فروشگاه پوشاک زنانه</div>
+    <div class="header-line">
+      <div class="header-brand"><img src="icon-192.png?v=5" alt="لوگوی گالری پرشین"><div><h1>حسابداری گالری پرشین</h1><div class="sub">فروشگاه پوشاک زنانه</div></div></div>
+      <div class="flex" style="gap:6px"><button type="button" class="btn btn-outline btn-sm header-lock" onclick="changeHesabManPassword()">تغییر رمز</button><button type="button" class="btn btn-outline btn-sm header-lock" onclick="lockHesabMan()">قفل</button></div>
+    </div>
   </div>
 
   <div class="nav" id="mainNav">
@@ -303,6 +354,7 @@
     <button data-page="staff">فروشنده‌ها</button>
     <button data-page="reports">گزارش</button>
     <button data-page="backup">بک‌آپ</button>
+    <button data-page="about">درباره برنامه</button>
   </div>
 
   <!-- Dashboard -->
@@ -475,6 +527,19 @@
     </div>
   </div>
 
+  <!-- About / Version -->
+  <div class="page" id="page-about">
+    <div class="card">
+      <div class="section-title" style="margin-top:0">درباره برنامه</div>
+      <div style="display:flex;align-items:center;gap:14px;margin:12px 0 18px">
+        <img src="icon-192.png?v=6" alt="لوگوی گالری پرشین" style="width:64px;height:64px;border-radius:14px;background:#000;object-fit:cover">
+        <div><div style="font-weight:700;font-size:1.05rem">حسابداری گالری پرشین</div><div class="text-muted">مدیریت فروشگاه پوشاک زنانه</div></div>
+      </div>
+      <div class="list-item"><span>آخرین نسخه</span><strong id="appVersionLabel">نسخه ۱۴</strong></div>
+      <p class="text-muted" style="margin-top:12px">در هر به‌روزرسانی برنامه، شماره نسخه در همین بخش تغییر می‌کند.</p>
+    </div>
+  </div>
+
   <!-- Backup -->
   <div class="page" id="page-backup">
     <div class="card">
@@ -500,7 +565,109 @@
 
   <div class="toast" id="toast"></div>
 
+
+  </div>
   <script>
+    // ========== Local app access password ==========
+    // Password verifier only; business records remain in the existing IndexedDB format.
+    const AUTH_KEY = 'hesabManAuthV1';
+    let authMode = 'unlock';
+    let authBusy = false;
+
+    function authBase64(bytes) {
+      return btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    }
+    function authFromBase64(value) {
+      return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+    }
+    async function authDerive(password, salt) {
+      if (!window.crypto || !crypto.subtle) throw new Error('مرورگر از رمزنگاری امن پشتیبانی نمی‌کند. سایت را با HTTPS باز کنید.');
+      const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+      return await crypto.subtle.deriveBits({name:'PBKDF2', salt, iterations:310000, hash:'SHA-256'}, material, 256);
+    }
+    function authRecord() {
+      try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (_) { return null; }
+    }
+    function authShow(mode, message='') {
+      authMode = mode;
+      document.getElementById('authGate').hidden = false;
+      document.getElementById('appShell').hidden = true;
+      document.getElementById('authTitle').textContent = mode === 'setup' ? 'برای برنامه رمز اولیه بسازید' : 'برای ورود رمز عبور را وارد کنید';
+      document.getElementById('authHint').textContent = mode === 'setup' ? 'رمز باید حداقل ۸ کاراکتر باشد.' : 'رمز عبور تعیین‌شده را وارد کنید.';
+      document.getElementById('authConfirmWrap').hidden = mode !== 'setup';
+      document.getElementById('authPassword').value = '';
+      document.getElementById('authConfirm').value = '';
+      document.getElementById('authPassword').autocomplete = mode === 'setup' ? 'new-password' : 'current-password';
+      document.getElementById('authSubmit').textContent = mode === 'setup' ? 'ثبت رمز و ورود' : 'ورود به برنامه';
+      document.getElementById('authError').textContent = message;
+      setTimeout(() => document.getElementById('authPassword').focus(), 80);
+    }
+    async function authUnlock(password) {
+      const record = authRecord();
+      if (!record) throw new Error('تنظیم رمز اولیه پیدا نشد.');
+      const bits = await authDerive(password, authFromBase64(record.salt));
+      const digest = authBase64(bits);
+      if (digest !== record.verifier) throw new Error('رمز عبور اشتباه است.');
+      document.getElementById('authGate').hidden = true;
+      document.getElementById('appShell').hidden = false;
+      await startHesabManApp();
+    }
+    async function authSetup(password, confirmation) {
+      if (password.length < 8) throw new Error('رمز باید حداقل ۸ کاراکتر باشد.');
+      if (password !== confirmation) throw new Error('تکرار رمز با رمز اصلی یکسان نیست.');
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const verifier = authBase64(await authDerive(password, salt));
+      localStorage.setItem(AUTH_KEY, JSON.stringify({version:1, salt:authBase64(salt), verifier}));
+      await authUnlock(password);
+    }
+    async function changeHesabManPassword() {
+      const oldPassword = prompt('رمز فعلی را وارد کنید:');
+      if (oldPassword === null) return;
+      try {
+        const record = authRecord();
+        const bits = await authDerive(oldPassword, authFromBase64(record.salt));
+        if (authBase64(bits) !== record.verifier) return alert('رمز فعلی اشتباه است.');
+        const next = prompt('رمز جدید را وارد کنید (حداقل ۸ کاراکتر):');
+        if (next === null) return;
+        if (next.length < 8) return alert('رمز جدید باید حداقل ۸ کاراکتر باشد.');
+        const confirmNext = prompt('رمز جدید را دوباره وارد کنید:');
+        if (next !== confirmNext) return alert('دو رمز یکسان نیستند.');
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const verifier = authBase64(await authDerive(next, salt));
+        localStorage.setItem(AUTH_KEY, JSON.stringify({version:1, salt:authBase64(salt), verifier}));
+        alert('رمز ورود با موفقیت تغییر کرد.');
+      } catch (e) { alert(e.message || 'تغییر رمز انجام نشد.'); }
+    }
+    function lockHesabMan() {
+      document.getElementById('appShell').hidden = true;
+      authShow('unlock');
+    }
+    document.getElementById('authForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (authBusy) return;
+      authBusy = true;
+      const button = document.getElementById('authSubmit');
+      button.disabled = true;
+      document.getElementById('authError').textContent = '';
+      try {
+        const password = document.getElementById('authPassword').value;
+        if (authMode === 'setup') {
+          await authSetup(password, document.getElementById('authConfirm').value);
+        } else {
+          await authUnlock(password);
+        }
+      } catch (e) {
+        document.getElementById('authError').textContent = e.message || 'ورود انجام نشد.';
+      } finally {
+        authBusy = false;
+        button.disabled = false;
+      }
+    });
+    // Existing app startup is held until the password is successfully entered.
+    function beginHesabManAuth() {
+      authShow(authRecord() ? 'unlock' : 'setup');
+    }
+
     // ========== Database (IndexedDB) ==========
     const DB_NAME = 'HesabManDB';
     const DB_VERSION = 3;
@@ -727,17 +894,15 @@
     }
 
     function getProductCategories() {
-      const seen = new Set();
-      return products
-        .map(p => String(p.category || '').trim())
-        .filter(category => {
-          if (!category) return false;
+      const unique = new Map();
+      products.forEach(item => {
+        const category = String(item.category || '').trim();
+        if (category) {
           const key = category.toLocaleLowerCase('fa');
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        })
-        .sort((a, b) => a.localeCompare(b, 'fa'));
+          if (!unique.has(key)) unique.set(key, category);
+        }
+      });
+      return Array.from(unique.values()).sort((a, b) => a.localeCompare(b, 'fa'));
     }
 
     function escapeCategoryHtml(value) {
@@ -748,13 +913,15 @@
 
     function openProductModal(id) {
       const p = id ? products.find(x => x.id === id) : null;
-      const categoryOptions = getProductCategories()
-        .map(category => `<option value="${escapeCategoryHtml(category)}"></option>`)
-        .join('');
+      const categories = getProductCategories();
+      const currentCategory = String(p?.category || '').trim();
+      if (currentCategory && !categories.some(c => c.toLocaleLowerCase('fa') === currentCategory.toLocaleLowerCase('fa'))) categories.push(currentCategory);
+      categories.sort((a, b) => a.localeCompare(b, 'fa'));
+      const categoryOptions = categories.map(category => `<option value="${escapeCategoryHtml(category)}">${escapeCategoryHtml(category)}</option>`).join('');
       showModal(`
         <h3>${p ? 'ویرایش کالا' : 'کالای جدید'}</h3>
-        <div class="form-row"><label>نام کالا</label><input id="p-name" value="${p?.name || ''}" placeholder="مثال: مانتو مشکی" /></div>
-        <div class="form-row"><label>دسته‌بندی (اختیاری)</label><input id="p-cat" list="product-category-options" value="${p?.category || ''}" placeholder="انتخاب یا نوشتن دسته‌بندی" autocomplete="off" /><datalist id="product-category-options">${categoryOptions}</datalist></div>
+        <div class="form-row"><label>نام کالا</label><input id="p-name" value="${escapeCategoryHtml(p?.name || '')}" placeholder="مثال: مانتو مشکی" /></div>
+        <div class="form-row"><label>دسته‌بندی (اختیاری) — همه دسته‌ها</label><select id="p-cat-select"><option value="">بدون دسته‌بندی</option>${categoryOptions}<option value="__new__">+ ثبت دسته‌بندی جدید</option></select><input id="p-cat-new" style="display:none;margin-top:6px" placeholder="نام دسته‌بندی جدید را بنویسید" /></div>
         <div class="form-row"><label>قیمت خرید</label><input id="p-buy" type="number" value="${p?.buyPrice || ''}" placeholder="0" /></div>
         <div class="form-row"><label>قیمت فروش</label><input id="p-sale" type="number" value="${p?.salePrice || ''}" placeholder="0" /></div>
         <div class="form-row"><label>موجودی فعلی</label><input id="p-stock" type="number" value="${p?.stock ?? 0}" /></div>
@@ -764,6 +931,14 @@
           <button class="btn btn-outline" onclick="closeModal()">انصراف</button>
         </div>
       `);
+      const categorySelect = document.getElementById('p-cat-select');
+      const newCategoryInput = document.getElementById('p-cat-new');
+      if (currentCategory) categorySelect.value = currentCategory;
+      categorySelect.addEventListener('change', () => {
+        const isNew = categorySelect.value === '__new__';
+        newCategoryInput.style.display = isNew ? 'block' : 'none';
+        if (isNew) newCategoryInput.focus();
+      });
     }
 
     async function saveProduct(id) {
@@ -771,7 +946,7 @@
       if (!name) return toast('نام کالا را وارد کنید');
       const data = {
         name,
-        category: document.getElementById('p-cat').value.trim(),
+        category: document.getElementById('p-cat-select').value === '__new__' ? document.getElementById('p-cat-new').value.trim() : document.getElementById('p-cat-select').value.trim(),
         buyPrice: Number(document.getElementById('p-buy').value) || 0,
         salePrice: Number(document.getElementById('p-sale').value) || 0,
         stock: Number(document.getElementById('p-stock').value) || 0
@@ -1840,16 +2015,24 @@
     }
 
     // ========== Init ==========
-    (async () => {
-      await openDB();
-      await loadAll();
-      // Register service worker for offline
-      if ('serviceWorker' in navigator) {
-        try {
-          await navigator.serviceWorker.register('sw.js');
-        } catch (e) {}
+    let hesabManStarted = false;
+    async function startHesabManApp() {
+      if (hesabManStarted) return;
+      hesabManStarted = true;
+      try {
+        await openDB();
+        await loadAll();
+        if ('serviceWorker' in navigator) {
+          try { await navigator.serviceWorker.register('sw.js'); } catch (e) {}
+        }
+      } catch (error) {
+        hesabManStarted = false;
+        document.getElementById('appShell').hidden = true;
+        authShow('unlock', 'بارگذاری اطلاعات با مشکل مواجه شد؛ صفحه را دوباره باز کنید.');
+        console.error(error);
       }
-    })();
+    }
+    beginHesabManAuth();
 
     // Close modal on overlay click
     document.getElementById('modal').addEventListener('click', (e) => {
