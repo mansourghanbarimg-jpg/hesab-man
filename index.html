@@ -379,13 +379,8 @@
       </div>
       <div class="stat-card">
         <div class="num" id="stat-purchases">0</div>
-        <div class="label">خرید امروز</div>
+        <div class="label">فاکتور خرید امروز</div>
       </div>
-    </div>
-    <div class="inventory-value-grid" aria-label="ارزش مالی موجودی انبار">
-      <div class="inventory-value-card"><div class="caption">ارزش موجودی به قیمت خرید</div><div class="value" id="inventory-cost-value">۰</div></div>
-      <div class="inventory-value-card"><div class="caption">ارزش موجودی به قیمت فروش</div><div class="value" id="inventory-sale-value">۰</div></div>
-      <div class="inventory-value-card"><div class="caption">سود بالقوه موجودی (فروش منهای خرید)</div><div class="value" id="inventory-potential-profit">۰</div></div>
     </div>
     <div class="card">
       <div class="section-title" style="margin-top:0">دسترسی سریع</div>
@@ -397,10 +392,6 @@
         <button class="btn btn-outline flex-1 btn-sm" onclick="showPage('products')">مدیریت کالا</button>
         <button class="btn btn-outline flex-1 btn-sm" onclick="showPage('parties')">طرف‌حساب‌ها</button>
       </div>
-    </div>
-    <div class="card">
-      <div class="section-title" style="margin-top:0">آخرین فاکتورها</div>
-      <div id="recent-invoices"></div>
     </div>
   </div>
 
@@ -510,6 +501,17 @@
       <button class="btn btn-primary flex-1" id="reportTab-ledger" onclick="setReportTab('ledger')">گردش حساب اشخاص</button>
       <button class="btn btn-outline flex-1" id="reportTab-sales" onclick="setReportTab('sales')">فاکتورهای فروش</button>
       <button class="btn btn-outline flex-1" id="reportTab-purchases" onclick="setReportTab('purchases')">فاکتورهای خرید</button>
+      <button class="btn btn-outline flex-1" id="reportTab-inventory" onclick="setReportTab('inventory')">ارزش انبار</button>
+    </div>
+    <div id="reportInventoryPanel" class="hidden">
+      <div class="card">
+        <div class="section-title" style="margin-top:0">ارزش انبار</div>
+        <div id="inventorySecretPanel"><p class="text-muted">این اطلاعات محرمانه است و با رمز چهاررقمی نمایش داده می‌شود.</p><button class="btn btn-primary btn-block" onclick="unlockInventoryValues()">نمایش ارزش انبار</button></div>
+        <div id="inventorySecretValues" class="hidden">
+          <div class="stats"><div class="stat-card"><div class="num" id="inventory-cost-value">۰</div><div class="label">ارزش موجودی به قیمت خرید</div></div><div class="stat-card"><div class="num" id="inventory-sale-value">۰</div><div class="label">ارزش موجودی به قیمت فروش</div></div><div class="stat-card"><div class="num" id="inventory-potential-profit">۰</div><div class="label">سود بالقوه موجودی</div></div></div>
+          <button class="btn btn-outline btn-sm mt-2" onclick="lockInventoryValues()">مخفی کردن</button>
+        </div>
+      </div>
     </div>
     <div id="reportLedgerPanel">
       <div class="card">
@@ -545,8 +547,8 @@
         <img src="icon-192.png?v=6" alt="لوگوی گالری پرشین" style="width:64px;height:64px;border-radius:14px;background:#000;object-fit:cover">
         <div><div style="font-weight:700;font-size:1.05rem">حسابداری گالری پرشین</div><div class="text-muted">مدیریت فروشگاه پوشاک زنانه</div></div>
       </div>
-      <div class="list-item"><span>آخرین نسخه</span><strong id="appVersionLabel">نسخه ۱۶</strong></div>
-      <p class="text-muted" style="margin-top:12px">در هر به‌روزرسانی برنامه، شماره نسخه در همین بخش تغییر می‌کند.</p>
+      <div class="list-item"><span>آخرین نسخه</span><strong id="appVersionLabel">نسخه ۱۷</strong></div>
+      <p class="text-muted" style="margin-top:12px">در هر به‌روزرسانی برنامه، شماره نسخه در همین بخش تغییر می‌کند.</p><button class="btn btn-outline btn-block mt-2" onclick="changePrivacyPin()">تغییر رمز محرمانگی قیمت خرید</button>
     </div>
   </div>
 
@@ -828,8 +830,36 @@
       document.getElementById('modal').classList.add('show');
     }
 
+    // ========== Privacy PIN ==========
+    const PRIVACY_PIN_KEY = 'hesab-man-privacy-pin-v1';
+    let privacyPinCallback = null;
+    function getPrivacyPin(){ return localStorage.getItem(PRIVACY_PIN_KEY) || ''; }
+    function requirePrivacyPin(reason, callback){
+      const current=getPrivacyPin();
+      const setup=!current;
+      privacyPinCallback = callback;
+      showModal(`<h3>${setup?'تعیین رمز محرمانگی':'ورود رمز محرمانگی'}</h3><p class="text-muted">${reason}</p><label>${setup?'رمز چهاررقمی جدید':'رمز چهاررقمی'}</label><input id="privacyPinInput" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" /><div id="privacyPinConfirmWrap" ${setup?'':'hidden'}><label>تکرار رمز</label><input id="privacyPinConfirm" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" /></div><p id="privacyPinError" class="auth-error"></p><div class="flex"><button class="btn btn-primary flex-1" onclick="submitPrivacyPin(${setup})">${setup?'ثبت رمز':'تأیید'}</button><button class="btn btn-outline" onclick="closeModal()">انصراف</button></div>`);
+      setTimeout(()=>document.getElementById('privacyPinInput')?.focus(),80);
+    }
+    function submitPrivacyPin(isSetup){
+      const pin=document.getElementById('privacyPinInput')?.value||'';
+      const err=document.getElementById('privacyPinError');
+      if(!/^\d{4}$/.test(pin)){err.textContent='رمز باید دقیقاً ۴ رقم باشد';return;}
+      if(isSetup){const confirm=document.getElementById('privacyPinConfirm')?.value||'';if(pin!==confirm){err.textContent='رمز و تکرار آن یکسان نیست';return;}localStorage.setItem(PRIVACY_PIN_KEY,pin);closeModal();if(typeof privacyPinCallback==='function')privacyPinCallback();privacyPinCallback=null;return;}
+      if(pin!==getPrivacyPin()){err.textContent='رمز اشتباه است';return;}closeModal();if(typeof privacyPinCallback==='function')privacyPinCallback();privacyPinCallback=null;
+    }
+    function showProtectedPage(name){ showPage(name,true); }
+    function unlockProductBuyPrice(){
+      requirePrivacyPin('برای مشاهده یا ویرایش قیمت خرید این کالا رمز را وارد کنید.',()=>{const f=document.getElementById('p-buy');if(f){f.type='number';f.readOnly=false;f.placeholder='قیمت خرید';document.getElementById('buy-eye-icon').innerHTML='<svg viewBox=\"0 0 24 24\" width=\"20\" height=\"20\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/></svg>';f.focus();}});
+    }
+    function unlockInventoryValues(){requirePrivacyPin('مشاهده ارزش مالی موجودی انبار',()=>{document.getElementById('inventorySecretPanel').classList.add('hidden');document.getElementById('inventorySecretValues').classList.remove('hidden');const cost=products.reduce((sum,p)=>sum+Math.max(0,Number(p.stock||0))*Math.max(0,Number(p.buyPrice||0)),0);const sale=products.reduce((sum,p)=>sum+Math.max(0,Number(p.stock||0))*Math.max(0,Number(p.salePrice||0)),0);document.getElementById('inventory-cost-value').textContent=formatMoney(cost);document.getElementById('inventory-sale-value').textContent=formatMoney(sale);document.getElementById('inventory-potential-profit').textContent=formatMoney(sale-cost);});}
+    function lockInventoryValues(){const panel=document.getElementById('inventorySecretPanel');const vals=document.getElementById('inventorySecretValues');if(panel&&vals){panel.classList.remove('hidden');vals.classList.add('hidden');}}
+    function changePrivacyPin(){const current=getPrivacyPin();if(!current){requirePrivacyPin('برای تعیین رمز محرمانگی',()=>{});return;}requirePrivacyPin('برای تغییر رمز فعلی را وارد کنید',()=>{showModal(`<h3>تغییر رمز محرمانگی</h3><label>رمز جدید ۴ رقمی</label><input id="newPrivacyPin" type="password" inputmode="numeric" maxlength="4"><label>تکرار رمز جدید</label><input id="newPrivacyPinConfirm" type="password" inputmode="numeric" maxlength="4"><p id="newPrivacyPinError" class="auth-error"></p><button class="btn btn-primary btn-block" onclick="saveNewPrivacyPin()">ذخیره رمز جدید</button>`);});}
+    function saveNewPrivacyPin(){const a=document.getElementById('newPrivacyPin').value,b=document.getElementById('newPrivacyPinConfirm').value,e=document.getElementById('newPrivacyPinError');if(!/^\d{4}$/.test(a)){e.textContent='رمز باید ۴ رقم باشد';return;}if(a!==b){e.textContent='دو رمز یکسان نیستند';return;}localStorage.setItem(PRIVACY_PIN_KEY,a);closeModal();toast('رمز محرمانگی تغییر کرد');}
+
     // ========== Navigation ==========
-    function showPage(name) {
+    function showPage(name, privacyAuthorized=false) {
+      if((name==='purchase')&&!privacyAuthorized){requirePrivacyPin('برای ورود به تب خرید رمز چهاررقمی را وارد کنید.',()=>showPage(name,true));return;}
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.getElementById('page-' + name).classList.add('active');
       document.querySelectorAll('.nav button').forEach(b => {
@@ -872,36 +902,14 @@
       document.getElementById('stat-products').textContent = products.length;
       const totalStock = products.reduce((s, p) => s + (p.stock || 0), 0);
       document.getElementById('stat-stock').textContent = totalStock.toLocaleString('fa-IR');
-      // Inventory valuation uses all existing product records and current stock.
-      // Missing legacy prices are treated as zero; negative stock is excluded from valuation.
-      const inventoryCostValue = products.reduce((sum, p) => sum + Math.max(0, Number(p.stock || 0)) * Math.max(0, Number(p.buyPrice || 0)), 0);
-      const inventorySaleValue = products.reduce((sum, p) => sum + Math.max(0, Number(p.stock || 0)) * Math.max(0, Number(p.salePrice || 0)), 0);
-      document.getElementById('inventory-cost-value').textContent = formatMoney(inventoryCostValue);
-      document.getElementById('inventory-sale-value').textContent = formatMoney(inventorySaleValue);
-      document.getElementById('inventory-potential-profit').textContent = formatMoney(inventorySaleValue - inventoryCostValue);
       const today = new Date().toDateString();
       const salesToday = invoices.filter(i => i.type === 'sale' && new Date(i.date).toDateString() === today)
         .reduce((s, i) => s + (i.total || 0), 0);
-      const purchasesToday = invoices.filter(i => i.type === 'purchase' && new Date(i.date).toDateString() === today)
-        .reduce((s, i) => s + (i.total || 0), 0);
+      const purchasesToday = invoices.filter(i => i.type === 'purchase' && new Date(i.date).toDateString() === today).length;
       document.getElementById('stat-sales').textContent = salesToday.toLocaleString('fa-IR');
       document.getElementById('stat-purchases').textContent = purchasesToday.toLocaleString('fa-IR');
 
-      const recent = [...invoices].sort((a, b) => b.date - a.date).slice(0, 8);
-      const container = document.getElementById('recent-invoices');
-      if (!recent.length) {
-        container.innerHTML = '<div class="empty-state"><div class="icon">📋</div>هنوز فاکتوری ثبت نشده</div>';
-        return;
-      }
-      container.innerHTML = recent.map(inv => `
-        <div class="list-item" style="cursor:pointer" onclick="viewInvoice(${inv.id})">
-          <div>
-            <div style="font-weight:600">${inv.type === 'sale' ? 'فروش' : 'خرید'}${inv.invoiceNumber ? ' · شماره ' + inv.invoiceNumber : ''}</div>
-            <div class="text-muted text-sm">${formatDate(inv.date)} · ${inv.items?.length || 0} قلم</div>
-          </div>
-          <div style="font-weight:600;color:var(--primary)">${formatMoney(inv.total)}</div>
-        </div>
-      `).join('');
+
     }
 
     // ========== Products ==========
@@ -952,7 +960,7 @@
         <h3>${p ? 'ویرایش کالا' : 'کالای جدید'}</h3>
         <div class="form-row"><label>نام کالا</label><input id="p-name" value="${escapeCategoryHtml(p?.name || '')}" placeholder="مثال: مانتو مشکی" /></div>
         <div class="form-row"><label>دسته‌بندی (اختیاری) — همه دسته‌ها</label><select id="p-cat-select"><option value="">بدون دسته‌بندی</option>${categoryOptions}<option value="__new__">+ ثبت دسته‌بندی جدید</option></select><input id="p-cat-new" style="display:none;margin-top:6px" placeholder="نام دسته‌بندی جدید را بنویسید" /></div>
-        <div class="form-row"><label>قیمت خرید</label><input id="p-buy" type="number" value="${p?.buyPrice || ''}" placeholder="0" /></div>
+        <div class="form-row"><label>قیمت خرید (مخفی)</label><div class="flex" style="gap:8px"><input id="p-buy" type="password" inputmode="numeric" value="${p?.buyPrice || 0}" placeholder="••••••" readonly /><button class="btn btn-outline btn-sm" type="button" onclick="unlockProductBuyPrice()" aria-label="نمایش قیمت خرید"><span id="buy-eye-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span></button></div></div>
         <div class="form-row"><label>قیمت فروش</label><input id="p-sale" type="number" value="${p?.salePrice || ''}" placeholder="0" /></div>
         <div class="form-row"><label>موجودی فعلی</label><input id="p-stock" type="number" value="${p?.stock ?? 0}" /></div><div class="form-row"><label>توضیحات کالا</label><textarea id="p-description" rows="2" placeholder="مثلاً ۲۰ عدد مشکی، ۱۰ عدد آبی">${escapeCategoryHtml(p?.description || '')}</textarea></div>
         <div class="flex mt-2">
@@ -1189,7 +1197,7 @@
         <div class="product-tile" onclick="addToPurchaseCart(${p.id})">
           <div class="name">${p.name}</div>
           <div class="stock">موجودی: ${(p.stock || 0).toLocaleString('fa-IR')}</div>${p.description?`<div class="text-muted text-sm" style="margin-top:4px">${escapeCategoryHtml(p.description)}</div>`:''}
-          <div class="price">${formatMoney(p.buyPrice || 0)}</div>
+          <div class="price">قیمت خرید مخفی</div>
         </div>
       `).join('');
     }
@@ -1725,9 +1733,9 @@
 
     function setReportTab(tab) {
       activeReportTab = tab;
-      const panels = {ledger:'reportLedgerPanel', sales:'reportSalesPanel', purchases:'reportPurchasesPanel'};
+      const panels = {ledger:'reportLedgerPanel', sales:'reportSalesPanel', purchases:'reportPurchasesPanel', inventory:'reportInventoryPanel'};
       Object.entries(panels).forEach(([key,id]) => document.getElementById(id).classList.toggle('hidden', key !== tab));
-      Object.entries({ledger:'reportTab-ledger',sales:'reportTab-sales',purchases:'reportTab-purchases'}).forEach(([key,id]) => {
+      Object.entries({ledger:'reportTab-ledger',sales:'reportTab-sales',purchases:'reportTab-purchases',inventory:'reportTab-inventory'}).forEach(([key,id]) => {
         const btn=document.getElementById(id);
         btn.classList.toggle('btn-primary', key===tab);
         btn.classList.toggle('btn-outline', key!==tab);
@@ -1735,6 +1743,7 @@
       if(tab==='ledger') renderPartyLedgers();
       if(tab==='sales') renderInvoiceReport('sale');
       if(tab==='purchases') renderInvoiceReport('purchase');
+      if(tab==='inventory') lockInventoryValues();
     }
 
     function partyAccountData(party) {
