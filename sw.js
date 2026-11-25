@@ -1,4 +1,4 @@
-const CACHE = 'hesab-man-v17';
+const CACHE = 'hesab-man-v18';
 const ASSETS = [
   './',
   './index.html',
