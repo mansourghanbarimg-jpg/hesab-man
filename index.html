@@ -228,6 +228,11 @@
     }
     .stat-card .num { font-size: 1.3rem; font-weight: 700; color: var(--primary); }
     .stat-card .label { font-size: 0.8rem; color: #64748b; margin-top: 2px; }
+    .inventory-value-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 16px; }
+    .inventory-value-card { background:var(--card); border:1px solid var(--border); border-radius:14px; padding:13px; text-align:center; }
+    .inventory-value-card:last-child { grid-column:1 / -1; }
+    .inventory-value-card .value { font-size:1.12rem; font-weight:700; color:var(--primary); margin-top:5px; overflow-wrap:anywhere; }
+    .inventory-value-card .caption { font-size:.8rem; color:#64748b; }
     .invoice-item {
       display: flex;
       justify-content: space-between;
@@ -376,6 +381,11 @@
         <div class="num" id="stat-purchases">0</div>
         <div class="label">خرید امروز</div>
       </div>
+    </div>
+    <div class="inventory-value-grid" aria-label="ارزش مالی موجودی انبار">
+      <div class="inventory-value-card"><div class="caption">ارزش موجودی به قیمت خرید</div><div class="value" id="inventory-cost-value">۰</div></div>
+      <div class="inventory-value-card"><div class="caption">ارزش موجودی به قیمت فروش</div><div class="value" id="inventory-sale-value">۰</div></div>
+      <div class="inventory-value-card"><div class="caption">سود بالقوه موجودی (فروش منهای خرید)</div><div class="value" id="inventory-potential-profit">۰</div></div>
     </div>
     <div class="card">
       <div class="section-title" style="margin-top:0">دسترسی سریع</div>
@@ -535,7 +545,7 @@
         <img src="icon-192.png?v=6" alt="لوگوی گالری پرشین" style="width:64px;height:64px;border-radius:14px;background:#000;object-fit:cover">
         <div><div style="font-weight:700;font-size:1.05rem">حسابداری گالری پرشین</div><div class="text-muted">مدیریت فروشگاه پوشاک زنانه</div></div>
       </div>
-      <div class="list-item"><span>آخرین نسخه</span><strong id="appVersionLabel">نسخه ۱۵</strong></div>
+      <div class="list-item"><span>آخرین نسخه</span><strong id="appVersionLabel">نسخه ۱۶</strong></div>
       <p class="text-muted" style="margin-top:12px">در هر به‌روزرسانی برنامه، شماره نسخه در همین بخش تغییر می‌کند.</p>
     </div>
   </div>
@@ -862,6 +872,13 @@
       document.getElementById('stat-products').textContent = products.length;
       const totalStock = products.reduce((s, p) => s + (p.stock || 0), 0);
       document.getElementById('stat-stock').textContent = totalStock.toLocaleString('fa-IR');
+      // Inventory valuation uses all existing product records and current stock.
+      // Missing legacy prices are treated as zero; negative stock is excluded from valuation.
+      const inventoryCostValue = products.reduce((sum, p) => sum + Math.max(0, Number(p.stock || 0)) * Math.max(0, Number(p.buyPrice || 0)), 0);
+      const inventorySaleValue = products.reduce((sum, p) => sum + Math.max(0, Number(p.stock || 0)) * Math.max(0, Number(p.salePrice || 0)), 0);
+      document.getElementById('inventory-cost-value').textContent = formatMoney(inventoryCostValue);
+      document.getElementById('inventory-sale-value').textContent = formatMoney(inventorySaleValue);
+      document.getElementById('inventory-potential-profit').textContent = formatMoney(inventorySaleValue - inventoryCostValue);
       const today = new Date().toDateString();
       const salesToday = invoices.filter(i => i.type === 'sale' && new Date(i.date).toDateString() === today)
         .reduce((s, i) => s + (i.total || 0), 0);
